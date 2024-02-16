@@ -1,0 +1,12 @@
+[package]
+name = "swc_demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+swc = "0.273.6"
+swc_common = "0.33.17"
+swc_ecma_ast = "0.112.2"
+swc_ecma_parser = { version = "0.143.3", features = ["verify", "typescript"] }
+swc_ecma_transforms_typescript = "0.188.5"
+swc_ecma_visit = "0.98.2"
