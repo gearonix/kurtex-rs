@@ -1,23 +1,4 @@
-fn main() {
-    let (js, sourcemap) = ts_to_js(
-        "hello.ts",
-        r#"
-    interface Args {
-        name: string;
-     }
-
-    function hello(param: Args) {
-        // comment
-        console.log(`Hello ${param.name}!`);
-    }
-    "#,
-    );
-
-    println!("{}", js);
-    println!("{}", sourcemap);
-}
-
-use std::io;
+use std::{env, fs, io};
 
 use swc::{config::IsModule, Compiler, PrintArgs};
 use swc_common::{errors::Handler, source_map::SourceMap, sync::Lrc, Mark, GLOBALS};
@@ -26,7 +7,6 @@ use swc_ecma_parser::Syntax;
 use swc_ecma_transforms_typescript::strip;
 use swc_ecma_visit::FoldWith;
 
-/// Transforms typescript to javascript. Returns tuple (js string, source map)
 pub(crate) fn ts_to_js(filename: &str, ts_code: &str) -> (String, String) {
     let cm = Lrc::new(SourceMap::new(swc_common::FilePathMapping::empty()));
 
@@ -44,14 +24,13 @@ pub(crate) fn ts_to_js(filename: &str, ts_code: &str) -> (String, String) {
             .parse_js(
                 source,
                 &handler,
-                EsVersion::Es5,
+                EsVersion::EsNext,
                 Syntax::Typescript(Default::default()),
-                IsModule::Bool(false),
+                IsModule::Bool(true),
                 Some(compiler.comments()),
             )
             .expect("parse_js failed");
 
-        // Add TypeScript type stripping transform
         let top_level_mark = Mark::new();
         let program = program.fold_with(&mut strip(top_level_mark));
 
@@ -65,4 +44,14 @@ pub(crate) fn ts_to_js(filename: &str, ts_code: &str) -> (String, String) {
 
         return (ret.code, ret.map.expect("no source map"));
     });
+}
+
+fn main() {
+    let contents = fs::read_to_string(env::current_dir().unwrap().join("src/ts/main.ts"))
+        .expect("should have been able to read a file");
+
+    let (js, sourcemap) = ts_to_js("hello.ts", &contents);
+
+    println!("{}", js);
+    println!("{}", sourcemap);
 }
