@@ -1,13 +1,19 @@
+#![feature(try_blocks)]
+
+use anyhow::Error;
 use deno_ast::MediaType;
 use deno_ast::ParseParams;
 use deno_ast::SourceTextInfo;
 use deno_core::error::AnyError;
-use deno_core::extension;
-use deno_core::op2;
-use deno_core::ModuleLoadResponse;
+use deno_core::v8::Local;
 use deno_core::ModuleSourceCode;
+use deno_core::{anyhow, ModuleLoadResponse};
+use deno_core::{extension, v8};
+use deno_core::{op2, ModuleId};
 use std::env;
 use std::rc::Rc;
+
+mod exports;
 
 #[op2(async)]
 #[string]
@@ -64,7 +70,6 @@ impl deno_core::ModuleLoader for TsModuleLoader {
         println!("module_specifier: {:?}", module_specifier);
         println!("_maybe_referrer: {:?}", _maybe_referrer);
         println!("_requested_module_type: {:?}", _requested_module_type);
-
 
         let module_specifier = module_specifier.clone();
 
@@ -131,22 +136,67 @@ extension! {
     ]
 }
 
-async fn run_js(file_path: &str) -> Result<(), AnyError> {
-    // println!("RUNTIME_SNAPSHOT: {:?}", RUNTIME_SNAPSHOT);
-    println!("{:?}", env!("OUT_DIR"));
-    println!("{:?}", env!("CARGO_MANIFEST_DIR"));
+async fn resolve_module_id(
+    deno_runtime: &mut deno_core::JsRuntime,
+    file_path: &str,
+    is_main_module: bool,
+) -> Result<ModuleId, Error> {
+    let module_specifier = env::current_dir()
+        .map_err(Error::from)
+        .and_then(|current_dir| {
+            deno_core::resolve_path(file_path, current_dir.as_path()).map_err(Error::from)
+        })
+        .unwrap();
 
-    let main_module = deno_core::resolve_path(file_path, env::current_dir()?.as_path())?;
-    let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
+    if is_main_module {
+        deno_runtime.load_main_es_module(&module_specifier).await
+    } else {
+        deno_runtime.load_side_es_module(&module_specifier).await
+    }
+}
+
+async fn run_js(file_path: &str) -> Result<(), AnyError> {
+    let mut deno_runtime = &mut deno_core::JsRuntime::new(deno_core::RuntimeOptions {
         module_loader: Some(Rc::new(TsModuleLoader)),
         startup_snapshot: Some(RUNTIME_SNAPSHOT),
         extensions: vec![runjs::init_ops()],
         ..Default::default()
     });
 
-    let mod_id = js_runtime.load_main_es_module(&main_module).await?;
-    let result = js_runtime.mod_evaluate(mod_id);
-    js_runtime.run_event_loop(Default::default()).await?;
+    let mod_id = resolve_module_id(deno_runtime, file_path, true)
+        .await?;
+
+    let result = deno_runtime.mod_evaluate(mod_id);
+    deno_runtime.run_event_loop(Default::default()).await?;
+
+    let sum_js_mod_id = resolve_module_id(&mut deno_runtime, "src/sum.js", false)
+        .await?;
+
+    let global = deno_runtime.get_module_namespace(sum_js_mod_id)?;
+
+    let mut scope_ref = deno_runtime.handle_scope();
+    let scope = &mut scope_ref;
+
+    let glb_open = global.open(scope);
+    let glb_local: v8::Local<'_, v8::Object> = v8::Local::new(scope, global.clone());
+
+    let func_key = v8::String::new(scope, "sum").unwrap();
+    let func = glb_open.get(scope, func_key.into()).unwrap();
+    let func = v8::Local::<v8::Function>::try_from(func).unwrap();
+
+    let a = v8::Integer::new(scope, 5).into();
+    let b = v8::Integer::new(scope, 2).into();
+
+    let func_args: &[Local<v8::Value>] = &[a, b];
+    let func_res = func.call(scope, glb_local.into(), func_args).unwrap();
+
+    let func_res = func_res
+        .to_string(scope)
+        .unwrap()
+        .to_rust_string_lossy(scope);
+
+    println!("Function returned: {:?}", func_res);
+
     result.await
 }
 
