@@ -1,7 +1,9 @@
 mod config;
 mod error;
 mod find_up;
+mod runner;
 mod runtime;
+mod resolve_config;
 
 use crate::config::get_or_init_cli_config;
 use crate::error::CliError;
@@ -21,7 +23,7 @@ fn resolve_path(parent_path: &str, child_path: &str) -> PathBuf {
     resolved_path
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(version, about, long_about = None)]
 pub struct CliConfig {
     #[arg(short, long)]
@@ -68,14 +70,14 @@ fn main() {
         .map(|cfg| root_dir.join(cfg))
         .or_else(|| find_up_files(&CONFIG_FILES, Some(root_dir.as_path())))
         .filter(|path| path.exists());
-    
+
     if let Some(cfg_path) = &config_path {
         let cli_config = CliConfig {
             config: Some(cfg_path.display().to_string()),
             ..args
         };
 
-        get_or_init_cli_config(cli_config);
+        get_or_init_cli_config(Some(cli_config));
 
         RuntimeManager::start(&RuntimeOptions {
             root: root_dir,
