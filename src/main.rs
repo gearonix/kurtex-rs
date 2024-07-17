@@ -1,5 +1,8 @@
 #![feature(try_blocks)]
 
+use std::env;
+use std::rc::Rc;
+
 use anyhow::Error;
 use deno_ast::MediaType;
 use deno_ast::ParseParams;
@@ -10,8 +13,7 @@ use deno_core::ModuleSourceCode;
 use deno_core::{anyhow, ModuleLoadResponse};
 use deno_core::{extension, v8};
 use deno_core::{op2, ModuleId};
-use std::env;
-use std::rc::Rc;
+use serde::{Deserialize, Serialize};
 
 mod exports;
 
@@ -163,19 +165,16 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
         ..Default::default()
     });
 
-    let mod_id = resolve_module_id(deno_runtime, file_path, true)
-        .await?;
+    let mod_id = resolve_module_id(deno_runtime, file_path, true).await?;
 
     let result = deno_runtime.mod_evaluate(mod_id);
     deno_runtime.run_event_loop(Default::default()).await?;
 
-    let sum_js_mod_id = resolve_module_id(&mut deno_runtime, "src/sum.js", false)
-        .await?;
+    let sum_js_mod_id = resolve_module_id(&mut deno_runtime, "src/sum.js", false).await?;
 
     let global = deno_runtime.get_module_namespace(sum_js_mod_id)?;
 
-    let mut scope_ref = deno_runtime.handle_scope();
-    let scope = &mut scope_ref;
+    let scope = &mut deno_runtime.handle_scope();
 
     let glb_open = global.open(scope);
     let glb_local: v8::Local<'_, v8::Object> = v8::Local::new(scope, global.clone());
@@ -200,10 +199,50 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
     result.await
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct Foo {
+    hello: String,
+}
+
+async fn run_cfg_js() -> Result<(), AnyError> {
+    let mut deno_runtime = &mut deno_core::JsRuntime::new(deno_core::RuntimeOptions {
+        module_loader: Some(Rc::new(TsModuleLoader)),
+        startup_snapshot: Some(RUNTIME_SNAPSHOT),
+        extensions: vec![runjs::init_ops()],
+        ..Default::default()
+    });
+
+    let mod_id = resolve_module_id(deno_runtime, "src/config.ts", true).await?;
+
+    let result = deno_runtime.mod_evaluate(mod_id);
+    deno_runtime.run_event_loop(Default::default()).await?;
+
+    let global = deno_runtime.get_module_namespace(mod_id)?;
+    let scope = &mut deno_runtime.handle_scope();
+    let glb_open = global.open(scope);
+    let glb_local: v8::Local<'_, v8::Object> = v8::Local::new(scope, global.clone());
+
+    let default_key = v8::String::new(scope, "default").unwrap();
+
+    let default_obj = glb_open
+        .get(scope, default_key.into())
+        .ok_or_else(|| anyhow::anyhow!("no default"))?;
+    let default_obj = v8::Local::<v8::Object>::try_from(default_obj).unwrap();
+
+    let obj: Foo = deno_core::serde_v8::from_v8(scope, default_obj.into())?;
+
+    println!("glb_open: {:?}", glb_open);
+    println!("test_func: {:?}", default_obj);
+    println!("obj: {:?}", obj);
+    // let global = deno_runtime.get_module_namespace(config_mod_id)?;
+    // let scope = &mut deno_runtime.handle_scope();
+    // let glb_open = global.open(scope);
+
+    result.await
+}
+
 fn main() {
     let args = &env::args().collect::<Vec<String>>()[1..];
-
-    println!("args: {:?}", args);
 
     if args.is_empty() {
         eprintln!("Usage: runjs <file>");
@@ -216,7 +255,12 @@ fn main() {
         .enable_all()
         .build()
         .unwrap();
-    if let Err(error) = runtime.block_on(run_js(file_path)) {
+
+    // if let Err(error) = runtime.block_on(run_js(file_path)) {
+    //     eprintln!("error: {error}");
+    // }
+
+    if let Err(error) = runtime.block_on(run_cfg_js()) {
         eprintln!("error: {error}");
     }
 }
