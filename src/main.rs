@@ -84,6 +84,10 @@ fn main() {
 
     get_or_init_cli_config(Some(cli_config));
 
+    let ktx_config = resolve_kurtex_config();
+
+    println!("ktx_config: {:?}", ktx_config);
+
     return RuntimeManager::start(&RuntimeOptions {
       root: root_dir,
       files: Vec::new(),
