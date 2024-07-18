@@ -1006,6 +1006,7 @@ dependencies = [
  "deno_core",
  "reqwest",
  "serde",
+ "serde_json",
  "tokio",
 ]
 

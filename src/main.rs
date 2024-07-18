@@ -45,7 +45,7 @@ pub struct CliConfig {
 #[derive(PartialEq, Eq, Debug)]
 pub struct ConfigFiles(pub &'static [&'static str]);
 
-pub static CONFIG_FILES: ConfigFiles = ConfigFiles(&["kurtex.config.ts", "kurtex.config.js"]);
+pub static CONFIG_FILES: ConfigFiles = ConfigFiles(&["kurtex.config.ts", "kurtex.config.js", "kurtex.config.json"]);
 
 impl Deref for ConfigFiles {
     type Target = [&'static str];
