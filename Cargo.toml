@@ -13,6 +13,7 @@ serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.120"
 globwalk = "0.9.1"
 regex = "1.10.5"
+globmatch = "0.3.0"
 
 [build-dependencies]
 deno_core = "0.283.0"
