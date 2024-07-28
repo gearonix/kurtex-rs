@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use crate::config::get_or_init_runtime_cfg;
 use crate::error::CliError;
 use crate::resolve_config::{resolve_kurtex_config, KurtexOptions};
-use crate::runner::runner::{Runner, RunnerOptions};
+use crate::runner::runner::Runner;
 
 #[derive(Debug)]
 pub struct RuntimeManager;
@@ -71,7 +71,7 @@ impl RuntimeManager {
     }));
 
     Runner::run_with_options();
-    
+
     // Self::execute_files(opts)
   }
 

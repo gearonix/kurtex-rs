@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::env;
 use std::ffi::OsStr;
 use std::fs::read_to_string;
@@ -36,25 +37,30 @@ pub enum ConfigExtension {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KurtexOptions {
   #[serde(default)]
-  pub includes: Vec<String>,
+  pub includes: Vec<Cow<'static, str>>,
   #[serde(default)]
-  pub excludes: Vec<String>,
+  pub excludes: Vec<Cow<'static, str>>,
   #[serde(default)]
   pub watch: bool,
 }
 
-const DEFAULT_TEST_CASES: &'static [&'static str] =
-  &["./test/**/*.(spec|test).[jt]s?(x)"];
+const DEFAULT_INCLUDES: &'static [&'static str] =
+  &["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"];
+
+const DEFAULT_EXCLUDES: &'static [&'static str] =
+  &["**/node_modules/**", "**/dist/**"];
 
 impl Default for KurtexOptions {
   fn default() -> Self {
-    // TODO: find better solution
-    let includes = Vec::from(DEFAULT_TEST_CASES)
-      .iter()
-      .map(|s| s.to_string())
-      .collect::<Vec<String>>();
+    let to_vec = |v: &'static [&'static str]| {
+      v.iter().map(|&s| Cow::Borrowed(s)).collect()
+    };
 
-    KurtexOptions { includes, excludes: Vec::new(), watch: false }
+    KurtexOptions {
+      includes: to_vec(DEFAULT_INCLUDES),
+      excludes: to_vec(DEFAULT_EXCLUDES),
+      watch: false,
+    }
   }
 }
 
