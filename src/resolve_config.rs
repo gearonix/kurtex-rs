@@ -35,7 +35,27 @@ pub enum ConfigExtension {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KurtexOptions {
-  hello: String,
+  #[serde(default)]
+  pub includes: Vec<String>,
+  #[serde(default)]
+  pub excludes: Vec<String>,
+  #[serde(default)]
+  pub watch: bool,
+}
+
+const DEFAULT_TEST_CASES: &'static [&'static str] =
+  &["./test/**/*.(spec|test).[jt]s?(x)"];
+
+impl Default for KurtexOptions {
+  fn default() -> Self {
+    // TODO: find better solution
+    let includes = Vec::from(DEFAULT_TEST_CASES)
+      .iter()
+      .map(|s| s.to_string())
+      .collect::<Vec<String>>();
+
+    KurtexOptions { includes, excludes: Vec::new(), watch: false }
+  }
 }
 
 pub fn resolve_config_extension(
@@ -124,7 +144,7 @@ async fn process_esm_file(
   let exported_config = v8::Local::<v8::Object>::try_from(exported_config)?;
   let serialized_cfg: KurtexOptions =
     deno_core::serde_v8::from_v8(scope, exported_config.into())
-      .map_err(|e| CliError::InvalidConfigOptions)?;
+      .map_err(|e| CliError::InvalidConfigOptions(e))?;
 
   Ok(serialized_cfg)
 }

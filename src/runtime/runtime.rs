@@ -1,8 +1,12 @@
 use std::collections::HashMap;
+use std::env;
 use std::hash::Hash;
 use std::path::PathBuf;
 
 use crate::config::get_or_init_runtime_cfg;
+use crate::error::CliError;
+use crate::resolve_config::{resolve_kurtex_config, KurtexOptions};
+use crate::runner::runner::{Runner, RunnerOptions};
 
 #[derive(Debug)]
 pub struct RuntimeManager;
@@ -27,26 +31,47 @@ pub struct KurtexConfigOptions {
 
 #[derive(Debug)]
 pub struct RuntimeConfig {
-  // server
-  module_cache: HashMap<PathBuf, String>,
+  pub module_cache: HashMap<PathBuf, String>,
+  pub watch: bool,
+  pub root: PathBuf,
+  pub options: KurtexOptions,
 }
 
 impl Default for RuntimeConfig {
   fn default() -> Self {
-    RuntimeConfig { module_cache: HashMap::new() }
+    let options = resolve_kurtex_config()
+      .map_err(|_e| CliError::FailedToReadConfigFile)
+      .unwrap();
+
+    RuntimeConfig {
+      module_cache: HashMap::new(),
+      watch: false,
+      options,
+      root: env::current_dir().unwrap(),
+    }
+  }
+}
+
+impl RuntimeConfig {
+  pub fn enable_watch_mode(&mut self) {
+    self.watch = true
   }
 }
 
 impl RuntimeManager {
   pub fn start(opts: &RuntimeOptions) {
-    let root_dir = &opts.root;
-
+    let root_dir = opts.root.clone();
     let mut __pending_modules__: HashMap<PathBuf, String> = HashMap::new();
 
+    // TODO: improve this
     get_or_init_runtime_cfg(Some(RuntimeConfig {
       module_cache: __pending_modules__,
+      root: root_dir,
+      ..RuntimeConfig::default()
     }));
 
+    Runner::run_with_options();
+    
     // Self::execute_files(opts)
   }
 

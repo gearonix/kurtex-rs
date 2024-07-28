@@ -86,6 +86,7 @@ impl deno_core::ModuleLoader for TsModuleLoader {
               ];
 
               module_path.set_extension(updated_ext.join("."));
+              
               get_module_type_from_path(
                 &mut referrer_path,
                 None::<fn(&mut PathBuf) -> (ModuleType, bool)>,
