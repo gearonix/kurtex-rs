@@ -1,21 +1,20 @@
 use std::borrow::Cow;
-use std::env;
 use std::ffi::OsStr;
-use std::fs::read_to_string;
 use std::path::PathBuf;
-use std::rc::Rc;
 
 use anyhow::Error as AnyError;
-use deno_core::{anyhow, v8, ModuleId};
+use deno_core::{anyhow, v8};
 use serde::{Deserialize, Serialize};
 
-use crate::config::get_or_init_cli_config;
-use crate::deno::module_loader::TsModuleLoader;
+use crate::{CLI_CONFIG, CliConfig, TOKIO_RUNTIME};
+use crate::context::ContextProvider;
+use crate::deno::module_resolver::EsmModuleResolver;
 use crate::error::CliError;
-use crate::CliConfig;
+use crate::utils::fs::read_json_file;
 
 pub fn resolve_kurtex_config() -> Result<KurtexOptions, AnyError> {
-  let CliConfig { config: config_path, .. } = get_or_init_cli_config(None);
+  let CliConfig { config: config_path, .. } =
+    ContextProvider::get(&CLI_CONFIG).unwrap();
   let config_path = config_path.as_ref().ok_or(CliError::MissingConfigPath)?;
   let config_ext = resolve_config_extension(config_path)?;
 
@@ -84,73 +83,29 @@ pub fn resolve_config_extension(
 pub fn serialize_json_config(
   config_path: &str,
 ) -> Result<KurtexOptions, AnyError> {
-  let cfg_contents = read_to_string(config_path)
-    .map_err(|e| {
-      format!("Failed to read config file {}: {}", config_path, e.to_string())
-    })
-    .map_err(|e| CliError::FailedToReadConfigFile)?;
-  let serialized_cfg: KurtexOptions = serde_json::from_str(&cfg_contents)?;
-
-  Ok(serialized_cfg)
+  read_json_file(config_path, CliError::FailedToReadConfigFile.into())
 }
 
 pub fn execute_esm_config(
   config_path: &str,
 ) -> Result<KurtexOptions, AnyError> {
-  let runtime =
-    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+  let tokio = ContextProvider::get(&TOKIO_RUNTIME).unwrap();
 
-  runtime.block_on(process_esm_file(config_path))
-}
-
-async fn resolve_module_id(
-  deno_runtime: &mut deno_core::JsRuntime,
-  file_path: &str,
-  is_main_module: bool,
-) -> Result<ModuleId, AnyError> {
-  // NOTE: remove current_dir
-  let module_specifier = env::current_dir()
-    .map_err(AnyError::from)
-    .and_then(|current_dir| {
-      deno_core::resolve_path(file_path, current_dir.as_path())
-        .map_err(AnyError::from)
-    })
-    .unwrap();
-
-  if is_main_module {
-    deno_runtime.load_main_es_module(&module_specifier).await
-  } else {
-    deno_runtime.load_side_es_module(&module_specifier).await
-  }
+  tokio.block_on(process_esm_file(config_path))
 }
 
 async fn process_esm_file(
   config_path: &str,
 ) -> Result<KurtexOptions, AnyError> {
-  let deno_runtime =
-    &mut deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-      module_loader: Some(Rc::new(TsModuleLoader)),
-      ..Default::default()
-    });
+  let mut resolver = EsmModuleResolver::new();
 
-  let mod_id = resolve_module_id(deno_runtime, config_path, true).await?;
+  let module_id = resolver.process_esm_file(config_path).await?;
+  let exports: v8::Local<v8::Object> =
+    resolver.extract_file_exports(module_id, None::<&str>).await?;
+  let kurtex_config = resolver
+    .serialize_v8_object::<KurtexOptions>(exports)
+    .await
+    .map_err(|e| CliError::InvalidConfigOptions(e))?;
 
-  deno_runtime.mod_evaluate(mod_id).await?;
-  deno_runtime.run_event_loop(Default::default()).await?;
-
-  let global = deno_runtime.get_module_namespace(mod_id)?;
-  let scope = &mut deno_runtime.handle_scope();
-  let glb_open = global.open(scope);
-
-  let default_export = v8::String::new(scope, "default").unwrap();
-
-  let exported_config = glb_open
-    .get(scope, default_export.into())
-    .ok_or(CliError::MissingDefaultExport)?;
-  let exported_config = v8::Local::<v8::Object>::try_from(exported_config)?;
-  let serialized_cfg: KurtexOptions =
-    deno_core::serde_v8::from_v8(scope, exported_config.into())
-      .map_err(|e| CliError::InvalidConfigOptions(e))?;
-
-  Ok(serialized_cfg)
+  Ok(kurtex_config)
 }

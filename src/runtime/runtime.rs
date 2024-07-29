@@ -3,9 +3,9 @@ use std::env;
 use std::hash::Hash;
 use std::path::PathBuf;
 
-use crate::config::get_or_init_runtime_cfg;
+use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::error::CliError;
-use crate::resolve_config::{resolve_kurtex_config, KurtexOptions};
+use crate::resolve_config::{KurtexOptions, resolve_kurtex_config};
 use crate::runner::runner::Runner;
 
 #[derive(Debug)]
@@ -63,12 +63,14 @@ impl RuntimeManager {
     let root_dir = opts.root.clone();
     let mut __pending_modules__: HashMap<PathBuf, String> = HashMap::new();
 
-    // TODO: improve this
-    get_or_init_runtime_cfg(Some(RuntimeConfig {
-      module_cache: __pending_modules__,
-      root: root_dir,
-      ..RuntimeConfig::default()
-    }));
+    ContextProvider::init_once(
+      &RUNTIME_CONFIG,
+      RuntimeConfig {
+        module_cache: __pending_modules__,
+        root: root_dir,
+        ..RuntimeConfig::default()
+      },
+    );
 
     Runner::run_with_options();
 

@@ -1,33 +1,32 @@
+use std::cell::RefCell;
 use std::env;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use std::sync::OnceLock;
+use std::thread::LocalKey;
 
 use clap::Parser;
+use deno_ast::swc::parser::token::KnownIdent::Static;
+use deno_core::v8::Local;
+use tokio::runtime::Runtime;
 
+use crate::context::{ContextProvider, CLI_CONFIG, TOKIO_RUNTIME};
 use find_up::find_up_files;
 use runtime::runtime::RuntimeManager;
 
-use crate::config::get_or_init_cli_config;
 use crate::error::CliError;
 use crate::resolve_config::resolve_kurtex_config;
-use crate::runtime::runtime::RuntimeOptions;
+use crate::runtime::runtime::{RuntimeConfig, RuntimeOptions};
 
-mod config;
+mod context;
 mod deno;
 mod error;
 mod find_up;
 mod resolve_config;
 mod runner;
 mod runtime;
-
-// TODO: what is this?
-fn resolve_path(parent_path: &str, child_path: &str) -> PathBuf {
-  let root_path = Path::new(parent_path);
-  let resolved_path = root_path.join(root_path);
-
-  resolved_path
-}
+mod utils;
 
 #[derive(Parser, Debug, Default)]
 #[command(version, about, long_about = None)]
@@ -61,9 +60,12 @@ impl Deref for ConfigFiles {
     &self.0
   }
 }
-
 fn main() {
   let args = CliConfig::parse();
+  let tokio_runtime =
+    tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+
+  ContextProvider::init_once(&TOKIO_RUNTIME, tokio_runtime);
 
   let root_dir = &args
     .root
@@ -82,8 +84,7 @@ fn main() {
     let cli_config =
       CliConfig { config: Some(cfg_path.display().to_string()), ..args };
 
-    get_or_init_cli_config(Some(cli_config));
-
+    ContextProvider::init_once(&CLI_CONFIG, cli_config);
 
     return RuntimeManager::start(&RuntimeOptions {
       root: root_dir,
@@ -100,5 +101,3 @@ mod exits {
   pub const SUCCESS: i32 = 0;
   pub const RUNTIME_ERROR: i32 = 1;
 }
-
-// TODO: fix clippy errors

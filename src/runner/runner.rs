@@ -1,12 +1,11 @@
-use deno_core::error::AnyError;
-use globmatch::Matcher;
-use globwalk;
-use globwalk::DirEntry;
-use regex::Regex;
 use std::borrow::Cow;
 
-use crate::config::{get_or_init_cli_config, get_or_init_runtime_cfg};
+use deno_core::error::AnyError;
+use globwalk;
+
+use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::runtime::runtime::RuntimeConfig;
+use crate::CLI_CONFIG;
 
 const TEST_FILES_MAX_DEPTH: u32 = 25;
 
@@ -14,8 +13,8 @@ pub struct Runner;
 
 impl Runner {
   pub fn run_with_options() -> Result<(), AnyError> {
-    let cli_config = get_or_init_cli_config(None);
-    let runtime_config = get_or_init_runtime_cfg(None);
+    let cli_config = ContextProvider::get(&CLI_CONFIG).unwrap();
+    let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
 
     // let RuntimeConfig { options: runtime_opts, root, .. } = runtime_config;
 
