@@ -1,11 +1,10 @@
 const { core } = Deno
 
 
-
 const kurtex = {
     test: (fn) => {
-        // return core.ops.op_test(fn);
-        core.print("test worked", false);
+        core.ops.op_test(fn);
+        return core.print("test worked", false);
     }
 }
 

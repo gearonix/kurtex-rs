@@ -6,11 +6,11 @@ use anyhow::Error as AnyError;
 use deno_core::{anyhow, v8};
 use serde::{Deserialize, Serialize};
 
-use crate::{CLI_CONFIG, CliConfig, TOKIO_RUNTIME};
 use crate::context::ContextProvider;
-use crate::deno::module_resolver::EsmModuleResolver;
+use crate::deno::module_resolver::{EsmModuleResolver, EsmResolverOptions};
 use crate::error::CliError;
 use crate::utils::fs::read_json_file;
+use crate::{CliConfig, CLI_CONFIG, TOKIO_RUNTIME};
 
 pub fn resolve_kurtex_config() -> Result<KurtexOptions, AnyError> {
   let CliConfig { config: config_path, .. } =
@@ -97,7 +97,7 @@ pub fn execute_esm_config(
 async fn process_esm_file(
   config_path: &str,
 ) -> Result<KurtexOptions, AnyError> {
-  let mut resolver = EsmModuleResolver::new();
+  let mut resolver = EsmModuleResolver::new(EsmResolverOptions::default());
 
   let module_id = resolver.process_esm_file(config_path).await?;
   let exports: v8::Local<v8::Object> =

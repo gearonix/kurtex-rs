@@ -4,19 +4,36 @@ use std::rc::Rc;
 
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, Local, Value};
-use deno_core::{v8, ModuleId};
+use deno_core::{v8, Extension, ModuleId};
 use serde::{Deserialize, Serialize};
 
 use crate::deno::module_loader::TsModuleLoader;
+use crate::deno::ops::ResolverOps;
 
 pub struct EsmModuleResolver {
   pub runtime: deno_core::JsRuntime,
 }
 
+#[derive(Default)]
+pub struct EsmResolverOptions {
+  pub include_bindings: bool,
+}
+
 impl EsmModuleResolver {
-  pub fn new() -> EsmModuleResolver {
+  pub fn new(runtime_opts: EsmResolverOptions) -> EsmModuleResolver {
+    let EsmResolverOptions { include_bindings } = runtime_opts;
+
+    let binary_snapshot = ResolverOps::get_snapshot_binary();
+
+    let startup_snapshot = include_bindings.then(|| binary_snapshot);
+    let runtime_extensions =
+      include_bindings.then(|| ResolverOps::initialize_extensions());
+    let extensions = runtime_extensions.unwrap_or_else(|| vec![]);
+
     let deno_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
       module_loader: Some(Rc::new(TsModuleLoader)),
+      startup_snapshot,
+      extensions,
       ..Default::default()
     });
 

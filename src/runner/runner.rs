@@ -4,6 +4,7 @@ use deno_core::error::AnyError;
 use globwalk;
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
+use crate::deno::module_resolver::{EsmModuleResolver, EsmResolverOptions};
 use crate::runtime::runtime::RuntimeConfig;
 use crate::CLI_CONFIG;
 
@@ -16,6 +17,8 @@ impl Runner {
     let cli_config = ContextProvider::get(&CLI_CONFIG).unwrap();
     let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
 
+    let mut esm_runtime =
+      EsmModuleResolver::new(EsmResolverOptions { include_bindings: true });
     // let RuntimeConfig { options: runtime_opts, root, .. } = runtime_config;
 
     if cli_config.watch {
@@ -24,6 +27,8 @@ impl Runner {
     }
 
     Self::collect_test_files(&runtime_config)?.for_each(|file_path| {
+      esm_runtime.process_esm_file(file_path.display().to_string());
+
       println!("file_path: {:?}", file_path);
     });
 
