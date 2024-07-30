@@ -7,7 +7,9 @@ use deno_core::{anyhow, v8};
 use serde::{Deserialize, Serialize};
 
 use crate::context::ContextProvider;
-use crate::deno::module_resolver::{EsmModuleResolver, EsmResolverOptions};
+use crate::deno::module_resolver::{
+  serialize_v8_object, EsmModuleResolver, EsmResolverOptions,
+};
 use crate::error::CliError;
 use crate::utils::fs::read_json_file;
 use crate::{CliConfig, CLI_CONFIG, TOKIO_RUNTIME};
@@ -42,7 +44,7 @@ pub struct KurtexOptions {
   #[serde(default)]
   pub watch: bool,
   #[serde(default)]
-  pub parallel: bool
+  pub parallel: bool,
 }
 
 const DEFAULT_INCLUDES: &'static [&'static str] =
@@ -61,7 +63,7 @@ impl Default for KurtexOptions {
       includes: to_vec(DEFAULT_INCLUDES),
       excludes: to_vec(DEFAULT_EXCLUDES),
       watch: false,
-      parallel: false
+      parallel: false,
     }
   }
 }
@@ -103,10 +105,12 @@ async fn process_esm_file(
   let mut resolver = EsmModuleResolver::new(EsmResolverOptions::default());
 
   let module_id = resolver.process_esm_file(config_path).await?;
-  let exports: v8::Local<v8::Object> =
-    resolver.extract_file_exports(module_id, None::<&str>).await?;
-  let kurtex_config = resolver
-    .serialize_v8_object::<KurtexOptions>(exports)
+
+  let (exports, scope) = resolver
+    .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
+    .await?;
+
+  let kurtex_config = serialize_v8_object::<KurtexOptions>(scope, exports)
     .await
     .map_err(|e| CliError::InvalidConfigOptions(e))?;
 

@@ -3,8 +3,8 @@ use std::env;
 use std::rc::Rc;
 
 use deno_core::error::AnyError;
-use deno_core::v8::{DataError, Local, Value};
-use deno_core::{v8, Extension, ModuleId};
+use deno_core::v8::{DataError, HandleScope, Local, Value};
+use deno_core::{v8, ModuleId};
 use serde::{Deserialize, Serialize};
 
 use crate::deno::module_loader::TsModuleLoader;
@@ -58,37 +58,26 @@ impl EsmModuleResolver {
   }
 
   pub async fn extract_file_exports<'a, R, S>(
-    &mut self,
+    &'a mut self,
     module_id: ModuleId,
     exports_specifier: Option<S>,
-  ) -> Result<R, DataError>
+  ) -> Result<(R, HandleScope<'_>), AnyError>
   where
     S: AsRef<str>,
     R: TryFrom<Local<'a, Value>, Error = DataError>,
-    <R as TryFrom<Local<'a, Value>>>::Error: Send + Sync,
   {
     let global = self.runtime.get_module_namespace(module_id)?;
-    let scope = &mut self.runtime.handle_scope();
-    let file_object_mapper = global.open(scope);
-
-    let specifier = exports_specifier.map(|s| s.as_ref()).unwrap_or("default");
-    let default_export = v8::String::new(scope, specifier).unwrap();
-    let exported_config =
-      file_object_mapper.get(scope, default_export.into()).unwrap();
-
-    R::try_from(exported_config)
-  }
-
-  pub async fn serialize_v8_object<R>(
-    &mut self,
-    v8_object: Local<'_, v8::Object>,
-  ) -> Result<R, deno_core::serde_v8::Error>
-  where
-    R: Serialize + for<'de> Deserialize<'de>,
-  {
     let mut scope = self.runtime.handle_scope();
+    let scope_ref = &mut scope;
+    let file_object_mapper = global.open(scope_ref);
 
-    Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
+    let specifier =
+      exports_specifier.as_ref().map(|s| s.as_ref()).unwrap_or("default");
+    let default_export = v8::String::new(scope_ref, specifier).unwrap();
+    let exported_config =
+      file_object_mapper.get(scope_ref, default_export.into()).unwrap();
+
+    Ok((R::try_from(exported_config)?, scope))
   }
 
   async fn resolve_module_id(
@@ -111,4 +100,15 @@ impl EsmModuleResolver {
       self.runtime.load_side_es_module(&module_specifier).await
     }
   }
+}
+
+
+pub async fn serialize_v8_object<R>(
+  mut scope: HandleScope<'_>,
+  v8_object: Local<'_, v8::Object>,
+) -> Result<R, deno_core::serde_v8::Error>
+where
+  R: Serialize + for<'de> Deserialize<'de>,
+{
+  Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
 }
