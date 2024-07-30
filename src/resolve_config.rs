@@ -41,6 +41,8 @@ pub struct KurtexOptions {
   pub excludes: Vec<Cow<'static, str>>,
   #[serde(default)]
   pub watch: bool,
+  #[serde(default)]
+  pub parallel: bool
 }
 
 const DEFAULT_INCLUDES: &'static [&'static str] =
@@ -59,6 +61,7 @@ impl Default for KurtexOptions {
       includes: to_vec(DEFAULT_INCLUDES),
       excludes: to_vec(DEFAULT_EXCLUDES),
       watch: false,
+      parallel: false
     }
   }
 }

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::path::PathBuf;
 
 use deno_core::error::AnyError;
 use globwalk;
@@ -6,6 +7,7 @@ use globwalk;
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{EsmModuleResolver, EsmResolverOptions};
 use crate::runtime::runtime::RuntimeConfig;
+use crate::utils::tokio::{create_pinned_future, run_in_parallel};
 use crate::CLI_CONFIG;
 
 const TEST_FILES_MAX_DEPTH: u32 = 25;
@@ -13,24 +15,38 @@ const TEST_FILES_MAX_DEPTH: u32 = 25;
 pub struct Runner;
 
 impl Runner {
-  pub fn run_with_options() -> Result<(), AnyError> {
+  pub async fn run_with_options() -> Result<(), AnyError> {
     let cli_config = ContextProvider::get(&CLI_CONFIG).unwrap();
     let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
+    let RuntimeConfig { options: runtime_opts, .. } = runtime_config;
 
-    let mut esm_runtime =
+    let mut esm_resolver =
       EsmModuleResolver::new(EsmResolverOptions { include_bindings: true });
-    // let RuntimeConfig { options: runtime_opts, root, .. } = runtime_config;
 
     if cli_config.watch {
       // TODO
       // options.runtime.enable_watch_mode();
     }
 
-    Self::collect_test_files(&runtime_config)?.for_each(|file_path| {
-      esm_runtime.process_esm_file(file_path.display().to_string());
+    async fn print_hi_closure(file_path: PathBuf) {
+      println!("print hi, {}", file_path.display());
+    }
 
-      println!("file_path: {:?}", file_path);
-    });
+    let process_test_file = move |file_path: PathBuf| {
+      create_pinned_future(print_hi_closure(file_path))
+    };
+
+    let processed_tasks = Self::collect_test_files(&runtime_config)?
+      .map(process_test_file)
+      .collect();
+
+    if runtime_opts.parallel {
+      run_in_parallel(processed_tasks).await;
+    } else {
+      for task in processed_tasks {
+        task().await;
+      }
+    }
 
     Ok(())
   }

@@ -1,11 +1,13 @@
+use deno_core::error::AnyError;
+use deno_core::v8::Context;
 use std::collections::HashMap;
 use std::env;
 use std::hash::Hash;
 use std::path::PathBuf;
 
-use crate::context::{ContextProvider, RUNTIME_CONFIG};
+use crate::context::{ContextProvider, RUNTIME_CONFIG, TOKIO_RUNTIME};
 use crate::error::CliError;
-use crate::resolve_config::{KurtexOptions, resolve_kurtex_config};
+use crate::resolve_config::{resolve_kurtex_config, KurtexOptions};
 use crate::runner::runner::Runner;
 
 #[derive(Debug)]
@@ -59,9 +61,10 @@ impl RuntimeConfig {
 }
 
 impl RuntimeManager {
-  pub fn start(opts: &RuntimeOptions) {
+  pub fn start(opts: &RuntimeOptions) -> Result<(), AnyError> {
     let root_dir = opts.root.clone();
     let mut __pending_modules__: HashMap<PathBuf, String> = HashMap::new();
+    let tokio = ContextProvider::get(&TOKIO_RUNTIME).unwrap();
 
     ContextProvider::init_once(
       &RUNTIME_CONFIG,
@@ -72,8 +75,7 @@ impl RuntimeManager {
       },
     );
 
-    Runner::run_with_options();
-
+    tokio.block_on(Runner::run_with_options())
     // Self::execute_files(opts)
   }
 
