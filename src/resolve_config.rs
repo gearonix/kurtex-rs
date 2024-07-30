@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::context::ContextProvider;
 use crate::deno::module_resolver::{
-  serialize_v8_object, EsmModuleResolver, EsmResolverOptions,
+  EsmModuleResolver, EsmResolverOptions, EsmSerdeResolver,
 };
 use crate::error::CliError;
 use crate::utils::fs::read_json_file;
@@ -110,9 +110,10 @@ async fn process_esm_file(
     .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
     .await?;
 
-  let kurtex_config = serialize_v8_object::<KurtexOptions>(scope, exports)
-    .await
-    .map_err(|e| CliError::InvalidConfigOptions(e))?;
+  let kurtex_config =
+    EsmSerdeResolver::serialize::<KurtexOptions>(scope, exports)
+      .await
+      .map_err(|e| CliError::InvalidConfigOptions(e))?;
 
   Ok(kurtex_config)
 }

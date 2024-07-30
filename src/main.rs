@@ -1,23 +1,17 @@
-use std::cell::RefCell;
 use std::env;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::exit;
-use std::sync::OnceLock;
-use std::thread::LocalKey;
 
 use clap::Parser;
-use deno_ast::swc::parser::token::KnownIdent::Static;
-use deno_core::v8::Local;
-use tokio::runtime::Runtime;
+use deno_core::error::AnyError;
 
-use crate::context::{ContextProvider, CLI_CONFIG, TOKIO_RUNTIME};
 use find_up::find_up_files;
 use runtime::runtime::RuntimeManager;
 
+use crate::context::{CLI_CONFIG, ContextProvider, TOKIO_RUNTIME};
 use crate::error::CliError;
-use crate::resolve_config::resolve_kurtex_config;
-use crate::runtime::runtime::{RuntimeConfig, RuntimeOptions};
+use crate::runtime::runtime::RuntimeOptions;
 
 mod context;
 mod deno;
@@ -60,7 +54,7 @@ impl Deref for ConfigFiles {
     &self.0
   }
 }
-fn main() {
+fn main() -> Result<(), AnyError> {
   let args = CliConfig::parse();
   let tokio_runtime =
     tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
@@ -86,10 +80,10 @@ fn main() {
 
     ContextProvider::init_once(&CLI_CONFIG, cli_config);
 
-    return RuntimeManager::start(&RuntimeOptions {
+    RuntimeManager::start(&RuntimeOptions {
       root: root_dir,
       files: Vec::new(),
-    });
+    })
   } else {
     eprintln!("kurtex: {}", CliError::ConfigPathNotFound);
     exit(exits::RUNTIME_ERROR);

@@ -102,13 +102,17 @@ impl EsmModuleResolver {
   }
 }
 
+#[derive(Default)]
+pub struct EsmSerdeResolver;
 
-pub async fn serialize_v8_object<R>(
-  mut scope: HandleScope<'_>,
-  v8_object: Local<'_, v8::Object>,
-) -> Result<R, deno_core::serde_v8::Error>
-where
-  R: Serialize + for<'de> Deserialize<'de>,
-{
-  Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
+impl EsmSerdeResolver {
+  pub async fn serialize<R>(
+    mut scope: HandleScope<'_>,
+    v8_object: Local<'_, v8::Object>,
+  ) -> Result<R, deno_core::serde_v8::Error>
+  where
+    R: Serialize + for<'de> Deserialize<'de>,
+  {
+    Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
+  }
 }

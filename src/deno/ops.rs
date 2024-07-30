@@ -1,9 +1,8 @@
+use deno_core::{extension, Extension, op2};
 use deno_core::error::AnyError;
-use deno_core::{extension, op2, v8, Extension};
 
 #[op2(async)]
-#[string]
-async fn test(callback: &v8::Function) -> Result<(), AnyError> {
+async fn test() -> Result<(), AnyError> {
   println!("TESTTESTTEST");
   Ok(())
 }
