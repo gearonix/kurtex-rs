@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use deno_core::error::AnyError;
 use globwalk;
@@ -7,7 +8,7 @@ use globwalk;
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{EsmModuleResolver, EsmResolverOptions};
 use crate::runtime::runtime::RuntimeConfig;
-use crate::utils::tokio::{create_pinned_future, run_in_parallel};
+use crate::utils::tokio::{create_pinned_future, run_concurrently};
 use crate::CLI_CONFIG;
 
 const TEST_FILES_MAX_DEPTH: u32 = 25;
@@ -20,28 +21,38 @@ impl Runner {
     let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
     let RuntimeConfig { options: runtime_opts, .. } = runtime_config;
 
+    let now = std::time::Instant::now();
     let mut esm_resolver =
       EsmModuleResolver::new(EsmResolverOptions { include_bindings: true });
-
+    let esm_resolver = Arc::new(Mutex::new(esm_resolver));
     if cli_config.watch {
       // TODO
       // options.runtime.enable_watch_mode();
     }
 
-    async fn print_hi_closure(file_path: PathBuf) {
-      println!("print hi, {}", file_path.display());
-    }
+    let process_test_file = {
+      move |esm_resolver: Arc<Mutex<EsmModuleResolver>>, file_path: PathBuf| async move {
+        let mut resolver = esm_resolver.lock().unwrap();
 
-    let process_test_file = move |file_path: PathBuf| {
-      create_pinned_future(print_hi_closure(file_path))
+        let module_id = resolver
+          .process_esm_file(file_path.display().to_string())
+          .await
+          .unwrap();
+
+        println!("module_id: {:?}", module_id);
+      }
     };
 
     let processed_tasks = Self::collect_test_files(&runtime_config)?
-      .map(process_test_file)
+      .map(move |file_path: PathBuf| {
+        let esm_resolver = Arc::clone(&esm_resolver);
+        create_pinned_future(process_test_file(esm_resolver, file_path))
+      })
       .collect();
 
     if runtime_opts.parallel {
-      run_in_parallel(processed_tasks).await;
+      run_concurrently(processed_tasks).await;
+      println!("now: {:?}", now.elapsed());
     } else {
       for task in processed_tasks {
         task().await;

@@ -2,7 +2,7 @@ use deno_core::{extension, Extension, op2};
 use deno_core::error::AnyError;
 
 #[op2(async)]
-async fn test() -> Result<(), AnyError> {
+async fn op_test() -> Result<(), AnyError> {
   println!("TESTTESTTEST");
   Ok(())
 }
@@ -22,7 +22,7 @@ impl ResolverOps {
     extension! {
         kurtex,
         ops = [
-            test
+            op_test
         ]
     };
 
