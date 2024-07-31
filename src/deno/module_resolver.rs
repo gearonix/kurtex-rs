@@ -8,7 +8,7 @@ use deno_core::{v8, ModuleId};
 use serde::{Deserialize, Serialize};
 
 use crate::deno::module_loader::TsModuleLoader;
-use crate::runner::ops::ResolverOps;
+use crate::runner::ops::DenoOpsResolver;
 
 pub struct EsmModuleResolver {
   pub runtime: deno_core::JsRuntime,
@@ -23,12 +23,12 @@ impl EsmModuleResolver {
   pub fn new(runtime_opts: EsmResolverOptions) -> EsmModuleResolver {
     let EsmResolverOptions { include_bindings } = runtime_opts;
 
-    let binary_snapshot = ResolverOps::get_snapshot_binary();
+    let binary_snapshot = DenoOpsResolver::get_library_snapshot_path();
 
     let startup_snapshot = include_bindings.then(|| binary_snapshot);
     let runtime_extensions =
-      include_bindings.then(|| ResolverOps::initialize_extensions());
-    let extensions = runtime_extensions.unwrap_or_else(|| vec![]);
+      include_bindings.then(|| DenoOpsResolver::new()).map(|ops| ops.extensions);
+    let extensions = runtime_extensions.unwrap_or_else(|| Vec::new());
 
     let deno_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
       module_loader: Some(Rc::new(TsModuleLoader)),
@@ -43,7 +43,7 @@ impl EsmModuleResolver {
   pub async fn process_esm_file<S>(
     &mut self,
     file_path: S,
-    is_main: bool
+    is_main: bool,
   ) -> Result<ModuleId, AnyError>
   where
     S: AsRef<str>,

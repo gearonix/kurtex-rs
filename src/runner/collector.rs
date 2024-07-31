@@ -19,6 +19,20 @@ pub enum CollectorSuiteState {
   Pass,
 }
 
+impl From<String> for CollectorRunMode {
+  fn from(value: String) -> Self {
+    match value.as_str() {
+      "run" => CollectorRunMode::Run,
+      "skip" => CollectorRunMode::Skip,
+      "only" => CollectorRunMode::Only,
+      "todo" => CollectorRunMode::Todo,
+      _ => {
+        panic!("Invalid CollectorRunMode variant: '{}'", value)
+      }
+    }
+  }
+}
+
 pub struct NodeCollectorManager {
   task_queue: Vec<Rc<CollectorTask>>,
   collector_node: Rc<CollectorNode>,
