@@ -8,7 +8,7 @@ use deno_core::{v8, ModuleId};
 use serde::{Deserialize, Serialize};
 
 use crate::deno::module_loader::TsModuleLoader;
-use crate::deno::ops::ResolverOps;
+use crate::runner::ops::ResolverOps;
 
 pub struct EsmModuleResolver {
   pub runtime: deno_core::JsRuntime,

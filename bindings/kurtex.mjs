@@ -9,4 +9,14 @@ const kurtex = {
 }
 
 
+function registerApiGlobally() {
+    Object.entries(kurtex).forEach(([key, value]) => {
+        globalThis[key] = value
+    })
+}
+
+registerApiGlobally()
+
+
 globalThis.kurtex = kurtex
+
