@@ -1,6 +1,8 @@
 /target
 .idea
+node_modules
+dist
 
 # TEMPORARY
 dev
-kurtex.config.*
+kurtex.config.*P

@@ -1,0 +1,34 @@
+{
+  "name": "@kurtex/monorepo",
+  "version": "1.0.0",
+  "description": "",
+  "private": "true",
+  "main": "./packages/kurtex/dist/index.mjs",
+  "scripts": {
+    "build": "pnpm --filter \"@kurtex/*\" run build"
+  },
+  "engines": {
+    "pnpm": "9.5.0"
+  },
+  "devDependencies": {
+    "@antfu/ni": "^0.21.12",
+    "@types/node": "^20.11.26",
+    "eslint": "^8.57.0",
+    "esno": "^4.7.0",
+    "prettier": "^3.2.5",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.2",
+    "unbuild": "^2.0.0",
+    "eslint-kit": "10.19.0",
+    "vite": "^5.1.6",
+    "vitest": "^1.3.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kurtexdev/kurtex"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@9.5.0"
+}
