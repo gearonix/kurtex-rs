@@ -43,13 +43,14 @@ impl EsmModuleResolver {
   pub async fn process_esm_file<S>(
     &mut self,
     file_path: S,
+    is_main: bool
   ) -> Result<ModuleId, AnyError>
   where
     S: AsRef<str>,
   {
     let file_path = file_path.as_ref();
 
-    let module_id = self.resolve_module_id(file_path, true).await?;
+    let module_id = self.resolve_module_id(file_path, is_main).await?;
 
     self.runtime.mod_evaluate(module_id).await?;
     self.runtime.run_event_loop(Default::default()).await?;

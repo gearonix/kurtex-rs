@@ -1,5 +1,7 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use deno_core::error::AnyError;
@@ -21,38 +23,38 @@ impl Runner {
     let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
     let RuntimeConfig { options: runtime_opts, .. } = runtime_config;
 
-    let now = std::time::Instant::now();
-    let mut esm_resolver =
+    let esm_resolver =
       EsmModuleResolver::new(EsmResolverOptions { include_bindings: true });
-    let esm_resolver = Arc::new(Mutex::new(esm_resolver));
+    let esm_resolver = Rc::new(RefCell::new(esm_resolver));
+
     if cli_config.watch {
       // TODO
       // options.runtime.enable_watch_mode();
     }
 
-    let process_test_file = {
-      move |esm_resolver: Arc<Mutex<EsmModuleResolver>>, file_path: PathBuf| async move {
-        let mut resolver = esm_resolver.lock().unwrap();
+    async fn process_test_file(
+      esm_resolver: Rc<RefCell<EsmModuleResolver>>,
+      file_path: PathBuf,
+    ) {
+      let mut resolver = esm_resolver.borrow_mut();
 
-        let module_id = resolver
-          .process_esm_file(file_path.display().to_string())
-          .await
-          .unwrap();
+      let module_id = resolver
+        .process_esm_file(file_path.display().to_string(), false)
+        .await
+        .unwrap();
 
-        println!("module_id: {:?}", module_id);
-      }
+      println!("module_id: {:?}", module_id);
     };
 
     let processed_tasks = Self::collect_test_files(&runtime_config)?
       .map(move |file_path: PathBuf| {
-        let esm_resolver = Arc::clone(&esm_resolver);
+        let esm_resolver = Rc::clone(&esm_resolver);
         create_pinned_future(process_test_file(esm_resolver, file_path))
       })
       .collect();
 
     if runtime_opts.parallel {
       run_concurrently(processed_tasks).await;
-      println!("now: {:?}", now.elapsed());
     } else {
       for task in processed_tasks {
         task().await;

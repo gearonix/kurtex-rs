@@ -104,7 +104,7 @@ async fn process_esm_file(
 ) -> Result<KurtexOptions, AnyError> {
   let mut resolver = EsmModuleResolver::new(EsmResolverOptions::default());
 
-  let module_id = resolver.process_esm_file(config_path).await?;
+  let module_id = resolver.process_esm_file(config_path, true).await?;
 
   let (exports, scope) = resolver
     .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
