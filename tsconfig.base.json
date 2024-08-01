@@ -31,5 +31,8 @@
     "noErrorTruncation": false,
     "pretty": true,
     "baseUrl": ".",
+    "paths": {
+      "@kurtex/core": ["packages/kurtex/src/index.ts"]
+    }
   }
 }

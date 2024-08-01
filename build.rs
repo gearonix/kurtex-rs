@@ -2,6 +2,7 @@ use deno_core::extension;
 use std::env;
 use std::path::PathBuf;
 
+
 fn main() {
   // TODO: improve
   extension!(kurtex, js = ["bindings/kurtex.mjs"], docs = "kurtex runtime");
@@ -24,6 +25,9 @@ fn main() {
     None,
   )
   .unwrap();
+
+
+
 
   std::fs::write(snapshot_path, snapshot.output).unwrap()
 }

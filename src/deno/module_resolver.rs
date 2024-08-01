@@ -19,6 +19,8 @@ pub struct EsmResolverOptions {
   pub include_bindings: bool,
 }
 
+// TODO rewrite to better scoped lts
+
 impl EsmModuleResolver {
   pub fn new(runtime_opts: EsmResolverOptions) -> EsmModuleResolver {
     let EsmResolverOptions { include_bindings } = runtime_opts;
