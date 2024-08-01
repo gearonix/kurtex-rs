@@ -2,7 +2,7 @@
 name = "kurtex"
 version = "0.1.0"
 edition = "2021"
-build = "build/main.rs"
+build = "main.rs"
 
 [dependencies]
 clap = { version = "4.5.13", features = ["derive"] }
@@ -16,14 +16,6 @@ globwalk = "0.9.1"
 
 [build-dependencies]
 deno_core = "0.283.0"
-swc_common = "0.36.2"
-swc_ecma_codegen = "0.154.4"
-swc_ecma_parser = "0.148.1"
-swc_ecma_transforms_base = "0.143.3"
-swc_ecma_transforms_module = "0.186.3"
-swc_ecma_transforms_typescript = "0.194.3"
-swc_ecma_visit = "0.103.3"
-
 
 [[bin]]
 name = "kurtex"

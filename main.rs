@@ -2,34 +2,13 @@ use deno_core::extension;
 use std::env;
 use std::path::PathBuf;
 
-mod transpile_ts;
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-  let runtime_binding_path = PathBuf::from(
-    env::current_dir()?.join("packages/kurtex/src/deno-bindings.ts"),
-  );
-
-  let output_bindings_path =
-    PathBuf::from(env::temp_dir()).join("kurtex-tmp/kurtex_deno_bindings.js");
-
-  let output_bindings_path =
-    PathBuf::from(env::current_dir()?.join("dev/tmp/kurtex_deno_bindings.js"));
-
   let target_snapshot_path =
     PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("KURTEX_SNAPSHOT.bin");
 
-  transpile_ts::transpile_typescript_file(
-    &runtime_binding_path,
-    &output_bindings_path,
-  );
-  
-  assert!(output_bindings_path.exists());
-
-  let extension_path = output_bindings_path.to_str().unwrap();
-
   extension!(
     KurtexInternals,
-    js = ["dev/tmp/kurtex_deno_bindings.js"],
+    js = ["packages/kurtex/dist/deno-bindings.mjs"],
     docs = "Kurtex internal bindings"
   );
 

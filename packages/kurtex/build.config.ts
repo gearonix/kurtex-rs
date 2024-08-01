@@ -2,7 +2,7 @@ import { resolve } from 'path'
 import { defineBuildConfig } from 'unbuild'
 
 export default defineBuildConfig({
-  entries: ['src/index', 'src/deno'],
+  entries: ['src/index', 'src/deno-bindings'],
   declaration: true,
   clean: true,
   rollup: {
