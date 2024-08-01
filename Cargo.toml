@@ -2,19 +2,28 @@
 name = "kurtex"
 version = "0.1.0"
 edition = "2021"
+build = "build/main.rs"
 
 [dependencies]
-clap = { version = "4.5.9", features = ["derive"] }
-deno_ast = { version = "0.38.2", features = ["transpiling"] }
+clap = { version = "4.5.13", features = ["derive"] }
+deno_ast = { version = "0.41.2", features = ["transpiling"] }
 deno_core = "0.283.0"
 reqwest = "0.12.5"
-tokio = { version = "1.38.1", features = ["full"] }
+tokio = { version = "1.39.2", features = ["full"] }
 serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.120"
+serde_json = "1.0.121"
 globwalk = "0.9.1"
 
 [build-dependencies]
 deno_core = "0.283.0"
+swc_common = "0.36.2"
+swc_ecma_codegen = "0.154.4"
+swc_ecma_parser = "0.148.1"
+swc_ecma_transforms_base = "0.143.3"
+swc_ecma_transforms_module = "0.186.3"
+swc_ecma_transforms_typescript = "0.194.3"
+swc_ecma_visit = "0.103.3"
+
 
 [[bin]]
 name = "kurtex"

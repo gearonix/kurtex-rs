@@ -32,7 +32,7 @@ const kurtexInternalGate = {
   }
 } satisfies KurtexInternals
 
-export const kurtexPublicApi = {
+const kurtexPublicApi = {
   test: registerTask
 } satisfies KurtexPublicApi
 

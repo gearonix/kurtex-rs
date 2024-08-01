@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use deno_ast::{MediaType, ParseParams, SourceTextInfo};
+use deno_ast::{
+  EmitOptions, MediaType, ParseParams, SourceMapOption, SourceTextInfo,
+};
 use deno_core::{ModuleLoadResponse, ModuleSourceCode, ModuleType};
 
 pub(crate) fn get_module_type_from_path<P>(
@@ -82,21 +85,18 @@ impl deno_core::ModuleLoader for TsModuleLoader {
 
               let updated_ext = vec![
                 extract_extension(&module_path),
-                extract_extension(&referrer_path)
+                extract_extension(&referrer_path),
               ];
 
               module_path.set_extension(updated_ext.join("."));
-              
+
               get_module_type_from_path(
                 &mut referrer_path,
                 None::<fn(&mut PathBuf) -> (ModuleType, bool)>,
               )
             }
             None => {
-              panic!(
-                "Unknown extension: {}",
-                extract_extension(&module_path)
-              );
+              panic!("Unknown extension: {}", extract_extension(&module_path));
             }
           }
         };
@@ -109,19 +109,28 @@ impl deno_core::ModuleLoader for TsModuleLoader {
       let media_type = MediaType::from_path(&module_path);
 
       let code = std::fs::read_to_string(&module_path.as_path())?;
+
       let code = if should_transpile {
         let parsed = deno_ast::parse_module(ParseParams {
           specifier: module_specifier.clone(),
-          text_info: SourceTextInfo::from_string(code),
+          text: Arc::from(code),
           media_type,
           capture_tokens: false,
           scope_analysis: false,
           maybe_syntax: None,
         })?;
-        parsed
-          .transpile(&Default::default(), &Default::default())?
+        let source_buffer = parsed
+          .transpile(
+            &Default::default(),
+            &EmitOptions {
+              source_map: SourceMapOption::None,
+              ..EmitOptions::default()
+            },
+          )?
           .into_source()
-          .text
+          .source;
+
+        String::from_utf8(source_buffer)?
       } else {
         code
       };
