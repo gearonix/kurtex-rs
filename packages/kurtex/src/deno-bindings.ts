@@ -1,11 +1,13 @@
 import type {
   CollectorRunMode,
+  CreateNode,
   KurtexInternals,
   KurtexPublicApi,
   ObjectEntry,
   TaskCell,
   Test,
-  TestCallback
+  TestCallback,
+  TestFactory
 } from '@/types'
 
 const { core } = Deno
@@ -21,19 +23,42 @@ function registerTaskImpl(runMode: CollectorRunMode): TaskCell {
   }
 }
 
+function registerNodeImpl(runMode: CollectorRunMode) {
+  return (identifier: string, factory?: TestFactory) => {
+    kurtexInternalGate.registerCollectorNode(
+      identifier,
+      factory && runMode !== 'todo' ? factory : () => {},
+      runMode
+    )
+  }
+}
+
 const registerTask = registerTaskImpl('run') as Test
 registerTask.only = registerTaskImpl('only')
 registerTask.skip = registerTaskImpl('skip')
 registerTask.todo = registerTaskImpl('todo')
 
+const registerNode = registerNodeImpl('run') as CreateNode
+
+registerNode.only = registerNodeImpl('only')
+registerNode.skip = registerNodeImpl('skip')
+registerNode.todo = registerNodeImpl('todo')
+
 const kurtexInternalGate = {
-  registerCollectorTask(identifier, callback, mode = 'run') {
+  registerCollectorTask(identifier, callback, mode) {
     ops.op_register_collector_task(identifier, callback, mode)
+  },
+  registerCollectorNode(identifier, factory, mode) {
+    ops.op_register_collector_node(identifier, factory, mode)
   }
 } satisfies KurtexInternals
 
 const kurtexPublicApi = {
-  test: registerTask
+  test: registerTask,
+  it: registerTask,
+  createNode: registerNode,
+  describe: registerNode,
+  suite: registerNode
 } satisfies KurtexPublicApi
 
 function registerApiGlobally() {

@@ -9,6 +9,7 @@ impl DenoOpsResolver {
   #[must_use]
   pub const fn get_library_snapshot_path() -> &'static [u8] {
     // TODO: move to global variable
+    // TODO: test factory
     include_bytes!(concat!(env!("OUT_DIR"), "/KURTEX_SNAPSHOT.bin"))
   }
 
@@ -48,8 +49,11 @@ mod node_collector_triggers {
   #[op2(fast)]
   pub fn op_register_collector_node<'a>(
     #[string] identifier: String,
-    callback: v8::Local<'a, v8::Function>,
+    factory: v8::Local<'a, v8::Function>,
+    #[string] mode: String,
   ) -> Result<(), AnyError> {
+    let run_mode = CollectorRunMode::from(mode);
+
     Ok(())
   }
 }
