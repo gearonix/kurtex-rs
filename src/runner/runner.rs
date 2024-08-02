@@ -1,13 +1,17 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
 
 use deno_core::error::AnyError;
+use deno_core::v8;
 use globwalk;
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{EsmModuleResolver, EsmResolverOptions};
+use crate::runner::context::CollectorContext;
+use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
 use crate::runtime::runtime::RuntimeConfig;
 use crate::utils::tokio::{create_pinned_future, run_concurrently};
 use crate::CLI_CONFIG;
@@ -22,8 +26,12 @@ impl Runner {
     let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
     let RuntimeConfig { options: runtime_opts, .. } = runtime_config;
 
-    let esm_resolver =
-      EsmModuleResolver::new(EsmResolverOptions { include_bindings: true });
+    let collector_ops_loader: Box<dyn OpsLoader> =
+      Box::new(CollectorRegistryOps::new());
+
+    let esm_resolver = EsmModuleResolver::new(EsmResolverOptions {
+      loaders: Vec::from([collector_ops_loader]),
+    });
     let esm_resolver = Rc::new(RefCell::new(esm_resolver));
 
     if cli_config.watch {
@@ -34,8 +42,14 @@ impl Runner {
     async fn process_test_file(
       esm_resolver: Rc<RefCell<EsmModuleResolver>>,
       file_path: PathBuf,
-    ) {
+    ) -> Result<(), AnyError> {
       let mut resolver = esm_resolver.borrow_mut();
+
+      // TODO: improve
+      let op_state = resolver.get_op_state()?;
+      let op_state = op_state.borrow();
+      let collector_ctx =
+        resolver.extract_op_state::<CollectorContext>(&op_state)?;
 
       let module_id = resolver
         .process_esm_file(file_path.display().to_string(), false)
@@ -43,7 +57,9 @@ impl Runner {
         .unwrap();
 
       println!("module_id: {:?}", module_id);
-    };
+
+      Ok(())
+    }
 
     let processed_tasks = Self::collect_test_files(&runtime_config)?
       .map(move |file_path: PathBuf| {

@@ -65,6 +65,7 @@ fn main() -> Result<(), AnyError> {
     .root
     .as_deref()
     .map(PathBuf::from)
+      // TODO: rewrite to execute dir
     .unwrap_or_else(|| env::current_dir().unwrap());
 
   let config_path = args

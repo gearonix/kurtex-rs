@@ -1,14 +1,17 @@
+use std::cell::RefCell;
 use std::convert::From;
 use std::env;
+use std::ops::Deref;
 use std::rc::Rc;
 
+use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
 use deno_core::{v8, ModuleId};
 use serde::{Deserialize, Serialize};
 
 use crate::deno::module_loader::TsModuleLoader;
-use crate::runner::ops::DenoOpsResolver;
+use crate::runner::ops::{BindingsResolver, OpsLoader};
 
 pub struct EsmModuleResolver {
   pub runtime: deno_core::JsRuntime,
@@ -16,21 +19,20 @@ pub struct EsmModuleResolver {
 
 #[derive(Default)]
 pub struct EsmResolverOptions {
-  pub include_bindings: bool,
+  pub loaders: Vec<Box<dyn OpsLoader>>,
 }
 
 // TODO rewrite to better scoped lts
 
 impl EsmModuleResolver {
   pub fn new(runtime_opts: EsmResolverOptions) -> EsmModuleResolver {
-    let EsmResolverOptions { include_bindings } = runtime_opts;
+    let binary_snapshot = BindingsResolver::get_library_snapshot_path();
+    let EsmResolverOptions { loaders: ops_loaders } = runtime_opts;
+    let include_snapshot = !ops_loaders.is_empty();
 
-    let binary_snapshot = DenoOpsResolver::get_library_snapshot_path();
-
-    let startup_snapshot = include_bindings.then(|| binary_snapshot);
-    let runtime_extensions =
-      include_bindings.then(|| DenoOpsResolver::new()).map(|ops| ops.extensions);
-    let extensions = runtime_extensions.unwrap_or_else(|| Vec::new());
+    let startup_snapshot = include_snapshot.then(|| binary_snapshot);
+    let extensions =
+      ops_loaders.into_iter().map(|loader| loader.load()).collect();
 
     let deno_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
       module_loader: Some(Rc::new(TsModuleLoader)),
@@ -81,6 +83,22 @@ impl EsmModuleResolver {
       file_object_mapper.get(scope_ref, default_export.into()).unwrap();
 
     Ok((R::try_from(exported_config)?, scope))
+  }
+
+  pub fn get_op_state(
+    &mut self,
+  ) -> Result<Rc<RefCell<deno_core::OpState>>, AnyError> {
+    Ok(self.runtime.op_state())
+  }
+
+  pub fn extract_op_state<'a, R>(
+    &mut self,
+    op_state: &'a deno_core::OpState,
+  ) -> Result<&'a R, AnyError>
+  where
+    R: 'static,
+  {
+    op_state.deref().try_borrow::<R>().context("error while accessing op_state")
   }
 
   async fn resolve_module_id(

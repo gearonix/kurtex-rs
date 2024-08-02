@@ -39,8 +39,15 @@ pub struct NodeCollectorManager {
   has_collected: bool,
 }
 
+#[derive(Default)]
+pub enum CollectorIdentifier {
+  #[default]
+  File,
+  Custom(String)
+}
+
 impl NodeCollectorManager {
-  pub fn new(identifier: String, mode: CollectorRunMode) -> Self {
+  pub fn new(identifier: CollectorIdentifier, mode: CollectorRunMode) -> Self {
     let task_queue: Vec<Rc<CollectorTask>> = Vec::new();
     let collector_node =
       Rc::new(CollectorNode { identifier, mode, ..CollectorNode::default() });
@@ -113,7 +120,7 @@ pub struct CollectorFile {
 
 #[derive(Default)]
 pub struct CollectorNode {
-  identifier: String,
+  identifier: CollectorIdentifier,
   mode: CollectorRunMode,
   tasks: RefCell<Vec<Rc<CollectorTask>>>,
   file: RefCell<Weak<CollectorFile>>,
