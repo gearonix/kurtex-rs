@@ -1093,7 +1093,6 @@ dependencies = [
  "deno_ast",
  "deno_core",
  "globwalk",
- "lazy_static",
  "reqwest",
  "serde",
  "serde_json",
