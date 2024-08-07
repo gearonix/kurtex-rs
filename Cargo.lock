@@ -1093,6 +1093,7 @@ dependencies = [
  "deno_ast",
  "deno_core",
  "globwalk",
+ "mut-rc",
  "reqwest",
  "serde",
  "serde_json",
@@ -1174,6 +1175,12 @@ dependencies = [
  "wasi",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "mut-rc"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a107035b211a77170a01f06f7773853c414edb4991f9327550af113a51be563f"
 
 [[package]]
 name = "native-tls"

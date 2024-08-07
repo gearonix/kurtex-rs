@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::convert::From;
 use std::env;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use deno_core::anyhow::Context;
@@ -91,16 +91,6 @@ impl EsmModuleResolver {
     Ok(self.runtime.op_state())
   }
 
-  pub fn extract_op_state<'a, R>(
-    &mut self,
-    op_state: &'a deno_core::OpState,
-  ) -> Result<&'a R, AnyError>
-  where
-    R: 'static,
-  {
-    op_state.deref().try_borrow::<R>().context("error while accessing op_state")
-  }
-
   async fn resolve_module_id(
     &mut self,
     file_path: &str,
@@ -136,4 +126,17 @@ impl EsmSerdeResolver {
   {
     Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
   }
+}
+
+// TODO: move somewhere
+pub fn extract_op_state<R>(
+  op_state: &mut deno_core::OpState,
+) -> Result<&mut R, AnyError>
+where
+  R: 'static,
+{
+  op_state
+    .deref_mut()
+    .try_borrow_mut::<R>()
+    .context("error while accessing op_state")
 }

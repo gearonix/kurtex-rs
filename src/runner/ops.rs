@@ -1,9 +1,15 @@
 use std::borrow::Cow;
+use std::rc::Rc;
 
+use crate::deno::module_resolver::extract_op_state;
+use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
-use deno_core::v8;
+use deno_core::{v8, OpState};
+use mut_rc::MutRc;
 
-use crate::runner::collector::CollectorRunMode;
+use crate::runner::collector::{
+  CollectorIdentifier, CollectorRunMode, NodeCollectorManager,
+};
 use crate::runner::context::CollectorContext;
 
 pub struct BindingsResolver {
@@ -30,26 +36,48 @@ impl CollectorRegistryOps {
   pub fn new() -> Self {
     CollectorRegistryOps {}
   }
-  
-  #[deno_core::op2(fast)]
-  fn op_register_collector_task<'a>(
+
+  #[deno_core::op2]
+  fn op_register_collector_task(
+    op_state: &mut OpState,
     #[string] identifier: String,
-    callback: v8::Local<'a, v8::Function>,
+    #[global] callback: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
     let run_mode = CollectorRunMode::from(mode);
+
+    let collector_ctx = op_state
+      .try_borrow_mut::<CollectorContext>()
+      .context("error while accessing collector context")?;
+
+    let current_node = collector_ctx.get_current_node();
+
+    current_node
+      .with_mut(|node| {
+        node.register_task(identifier, callback, run_mode);
+      })
+      .unwrap();
 
     Ok(())
   }
 
-  #[deno_core::op2(fast)]
+  #[deno_core::op2]
   fn op_register_collector_node<'a>(
+    op_state: &mut OpState,
     #[string] identifier: String,
-    factory: v8::Local<'a, v8::Function>,
+    #[global] factory: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
+    let identifier = CollectorIdentifier::Custom(identifier);
     let run_mode = CollectorRunMode::from(mode);
 
+    let node_collector =
+      MutRc::new(NodeCollectorManager::new(identifier, run_mode));
+    let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
+
+    collector_ctx.register_node(node_collector);
+
+    // TODO: return type
     Ok(())
   }
 }

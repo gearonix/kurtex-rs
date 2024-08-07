@@ -5,11 +5,13 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use deno_core::error::AnyError;
-use deno_core::v8;
 use globwalk;
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
-use crate::deno::module_resolver::{EsmModuleResolver, EsmResolverOptions};
+use crate::deno::module_resolver::{
+  extract_op_state, EsmModuleResolver, EsmResolverOptions,
+};
+use crate::runner::collector::CollectorFile;
 use crate::runner::context::CollectorContext;
 use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
 use crate::runtime::runtime::RuntimeConfig;
@@ -42,23 +44,43 @@ impl Runner {
     async fn process_test_file(
       esm_resolver: Rc<RefCell<EsmModuleResolver>>,
       file_path: PathBuf,
-    ) -> Result<(), AnyError> {
+    ) -> Result<Rc<CollectorFile>, AnyError> {
+      let collector_file = CollectorFile {
+        file_path: file_path.clone(),
+        ..CollectorFile::default()
+      };
+      let collector_file = Rc::new(collector_file);
+
       let mut resolver = esm_resolver.borrow_mut();
 
-      // TODO: improve
       let op_state = resolver.get_op_state()?;
-      let op_state = op_state.borrow();
-      let collector_ctx =
-        resolver.extract_op_state::<CollectorContext>(&op_state)?;
+      let mut op_state = op_state.borrow_mut();
+      let collector_ctx = extract_op_state::<CollectorContext>(&mut op_state)?;
+
+      collector_ctx.clear();
 
       let module_id = resolver
         .process_esm_file(file_path.display().to_string(), false)
         .await
         .unwrap();
 
-      println!("module_id: {:?}", module_id);
+      let obtained_collectors = collector_ctx.get_all_nodes();
 
-      Ok(())
+      for collector in obtained_collectors {
+        // TODO: rewrite RcMutMutateError
+        let collected_node = collector
+          .with_mut(|clr| clr.collect_node(collector_file.clone()).unwrap())
+          .unwrap();
+
+        let mut file_nodes = collector_file.nodes.borrow_mut();
+        file_nodes.push(collected_node);
+
+        collector_ctx.register_node(collector);
+      }
+      *collector_file.collected.borrow_mut() = true;
+      // let collector_file = Rc::try_unwrap(collector_file).unwrap();
+
+      Ok(collector_file)
     }
 
     let processed_tasks = Self::collect_test_files(&runtime_config)?
@@ -69,7 +91,9 @@ impl Runner {
       .collect();
 
     if runtime_opts.parallel {
-      run_concurrently(processed_tasks).await;
+      let files = run_concurrently(processed_tasks).await;
+
+      println!("files: {:?}", files);
     } else {
       for task in processed_tasks {
         task().await;
@@ -81,7 +105,7 @@ impl Runner {
 
   fn collect_test_files(
     runtime_cfg: &RuntimeConfig,
-  ) -> Result<impl Iterator<Item = std::path::PathBuf> + '_, AnyError> {
+  ) -> Result<impl Iterator<Item = PathBuf> + '_, AnyError> {
     let runtime_opts = &runtime_cfg.options;
     let walk_glob = |patterns: &Vec<Cow<'static, str>>| {
       globwalk::GlobWalkerBuilder::from_patterns(&runtime_cfg.root, patterns)
