@@ -29,13 +29,13 @@ impl CollectorContext {
     self.current_node = node.clone()
   }
 
-  pub fn get_current_node(&self) -> &MutRc<NodeCollectorManager> {
-    &self.current_node
+  pub fn get_current_node(&self) -> MutRc<NodeCollectorManager> {
+    self.current_node.clone()
   }
 
   pub fn clear(&mut self) {
     self.nodes.clear();
-    self.default_node.with_mut(|t| t.clear_task_queue()).unwrap();
+    self.default_node.with_mut(|t| t.reset_state()).unwrap();
     self.current_node = self.default_node.clone()
   }
 
@@ -43,7 +43,7 @@ impl CollectorContext {
     let mut all_nodes = self.nodes.clone();
     let default_node = self.default_node.clone();
     all_nodes.push(default_node);
-
+    
     all_nodes
   }
 }

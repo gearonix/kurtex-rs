@@ -121,8 +121,9 @@ impl NodeCollectorManager {
     hook_manager.borrow_mut().add_hook(hook_key, callback)
   }
 
-  pub fn clear_task_queue(&mut self) {
+  pub fn reset_state(&mut self) {
     self.task_queue.clear();
+    self.has_collected = false;
   }
 }
 
@@ -137,8 +138,9 @@ pub struct CollectorFile {
 impl std::fmt::Debug for CollectorFile {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("CollectorFile")
+      .field("file", &self.file_path)
       .field("collected", &self.collected.borrow())
-      .finish()
+      .field("nodes", &self.nodes.borrow().iter().map(|n| n)).finish()
   }
 }
 
@@ -150,6 +152,17 @@ pub struct CollectorNode {
   file: RefCell<Weak<CollectorFile>>,
   status: Option<CollectorSuiteState>,
   hook_manager: RefCell<LifetimeHookManager>,
+}
+
+impl std::fmt::Debug for CollectorNode {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    let identifier = match &self.identifier {
+      CollectorIdentifier::Custom(e) => &e,
+      CollectorIdentifier::File => "file",
+    };
+
+    f.debug_struct("CollectorNode").field("name", &identifier).finish()
+  }
 }
 
 type TestCallback = v8::Global<v8::Function>;

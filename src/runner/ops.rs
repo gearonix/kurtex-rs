@@ -49,9 +49,9 @@ impl CollectorRegistryOps {
     let collector_ctx = op_state
       .try_borrow_mut::<CollectorContext>()
       .context("error while accessing collector context")?;
-
+    
     let current_node = collector_ctx.get_current_node();
-
+    
     current_node
       .with_mut(|node| {
         node.register_task(identifier, callback, run_mode);

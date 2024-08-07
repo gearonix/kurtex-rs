@@ -1,3 +1,4 @@
+use deno_core::anyhow::Context;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::ops::Deref;
@@ -53,32 +54,37 @@ impl Runner {
 
       let mut resolver = esm_resolver.borrow_mut();
 
-      let op_state = resolver.get_op_state()?;
-      let mut op_state = op_state.borrow_mut();
-      let collector_ctx = extract_op_state::<CollectorContext>(&mut op_state)?;
-
-      collector_ctx.clear();
-
       let module_id = resolver
         .process_esm_file(file_path.display().to_string(), false)
         .await
         .unwrap();
 
-      let obtained_collectors = collector_ctx.get_all_nodes();
+      let op_state = resolver.get_op_state()?;
+      let mut op_state = op_state.borrow_mut();
+      let collector_ctx = extract_op_state::<CollectorContext>(&mut op_state)?;
 
+      collector_ctx.clear();
+      let obtained_collectors = collector_ctx.get_all_nodes();
+      
       for collector in obtained_collectors {
         // TODO: rewrite RcMutMutateError
         let collected_node = collector
-          .with_mut(|clr| clr.collect_node(collector_file.clone()).unwrap())
-          .unwrap();
+          .with_mut(|clr| {
+            clr
+              .collect_node(collector_file.clone())
+              .context("manager has been already collected")
+          })
+          .unwrap()?;
+
+        println!("collected_node: {:?}", collected_node);
 
         let mut file_nodes = collector_file.nodes.borrow_mut();
         file_nodes.push(collected_node);
 
         collector_ctx.register_node(collector);
       }
+      
       *collector_file.collected.borrow_mut() = true;
-      // let collector_file = Rc::try_unwrap(collector_file).unwrap();
 
       Ok(collector_file)
     }
