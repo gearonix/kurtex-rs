@@ -1,3 +1,4 @@
+use deno_core::v8;
 use mut_rc::MutRc;
 
 use crate::runner::collector::{
@@ -15,6 +16,7 @@ impl CollectorContext {
     let file_node = MutRc::new(NodeCollectorManager::new(
       CollectorIdentifier::File,
       CollectorRunMode::Run,
+      None,
     ));
 
     CollectorContext {

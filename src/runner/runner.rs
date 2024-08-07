@@ -7,12 +7,13 @@ use std::rc::Rc;
 
 use deno_core::error::AnyError;
 use globwalk;
+use mut_rc::MutRc;
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{
   extract_op_state, EsmModuleResolver, EsmResolverOptions,
 };
-use crate::runner::collector::CollectorFile;
+use crate::runner::collector::{CollectorFile, NodeCollectorManager};
 use crate::runner::context::CollectorContext;
 use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
 use crate::runtime::runtime::RuntimeConfig;
@@ -68,6 +69,18 @@ impl Runner {
         Ok(())
       }
 
+      async fn run_factory(
+        clr: MutRc<NodeCollectorManager>,
+        resolver: &mut EsmModuleResolver,
+      ) {
+        let clr = clr.finalize().unwrap();
+        let node_factory = clr.get_node_factory();
+
+        if let Some(factory) = node_factory {
+          resolver.call_v8_function(factory).await.unwrap();
+        }
+      }
+
       clear_collector_context(&mut resolver).unwrap();
 
       let module_id = resolver
@@ -84,6 +97,10 @@ impl Runner {
       println!("obtained_collectors.len: {:?}", obtained_collectors.len());
 
       for collector in obtained_collectors {
+        collector_ctx.register_node(collector.clone());
+
+        run_factory(collector.clone(), &mut resolver).await;
+
         // TODO: rewrite RcMutMutateError
         let collected_node = collector
           .with_mut(|clr| {
@@ -97,8 +114,6 @@ impl Runner {
 
         let mut file_nodes = collector_file.nodes.borrow_mut();
         file_nodes.push(collected_node);
-
-        collector_ctx.register_node(collector);
       }
 
       *collector_file.collected.borrow_mut() = true;

@@ -39,7 +39,7 @@ pub struct NodeCollectorManager {
   task_queue: Vec<Rc<CollectorTask>>,
   collector_node: Rc<CollectorNode>,
   has_collected: bool,
-  // node_factory: TestCallback,
+  node_factory: Option<TestCallback>,
 }
 
 #[derive(Default)]
@@ -53,7 +53,7 @@ impl NodeCollectorManager {
   pub fn new(
     identifier: CollectorIdentifier,
     mode: CollectorRunMode,
-    // factory: TestCallback,
+    node_factory: Option<TestCallback>,
   ) -> Self {
     let task_queue: Vec<Rc<CollectorTask>> = Vec::new();
     let collector_node =
@@ -63,8 +63,16 @@ impl NodeCollectorManager {
       collector_node,
       task_queue,
       has_collected: false,
-      // node_factory: factory,
+      node_factory,
     }
+  }
+
+  pub fn new_with_factory(
+    identifier: CollectorIdentifier,
+    mode: CollectorRunMode,
+    factory: TestCallback,
+  ) -> Self {
+    Self::new(identifier, mode, Some(factory))
   }
 
   #[inline]
@@ -80,8 +88,6 @@ impl NodeCollectorManager {
   ) -> Option<Rc<CollectorNode>> {
     self.should_collect().then(|| {
       self.has_collected = true;
-      // TODO: decide what to do here with node factories
-      // self.node_factory.;
 
       *self.collector_node.file.borrow_mut() = Rc::downgrade(&collector_file);
       let tasks_queue = self.task_queue.clone();
@@ -124,6 +130,10 @@ impl NodeCollectorManager {
   pub fn reset_state(&mut self) {
     self.task_queue.clear();
     self.has_collected = false;
+  }
+
+  pub fn get_node_factory(&self) -> &Option<TestCallback> {
+    &self.node_factory
   }
 }
 

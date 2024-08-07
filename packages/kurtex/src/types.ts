@@ -1,9 +1,9 @@
 type Awaitable<T> = T | Promise<T>
 
 export type TestCallback = () => Awaitable<void>
-export type TestFactory = (
-  cb: (name: string, fn: TestCallback) => void
-) => Awaitable<void>
+export type TestFactory = () // temporary
+// cb: (name: string, fn: TestCallback) => void
+=> Awaitable<void>
 
 // TODO: improve namings
 

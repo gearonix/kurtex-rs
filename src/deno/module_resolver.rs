@@ -1,14 +1,13 @@
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::convert::From;
 use std::env;
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 use std::rc::Rc;
 
+use deno_core::{ModuleId, v8};
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
-use deno_core::{v8, ModuleId, OpState};
-use mut_rc::MutRc;
 use serde::{Deserialize, Serialize};
 
 use crate::deno::module_loader::TsModuleLoader;
@@ -111,6 +110,14 @@ impl EsmModuleResolver {
     } else {
       self.runtime.load_side_es_module(&module_specifier).await
     }
+  }
+
+  // TODO: smallvec jsruntime.rs
+  pub async fn call_v8_function<'a >(
+    &mut self,
+    callback: &'a v8::Global<v8::Function>,
+  ) -> Result<v8::Global<v8::Value>, AnyError> {
+    self.runtime.call_with_args(callback, &[]).await
   }
 }
 

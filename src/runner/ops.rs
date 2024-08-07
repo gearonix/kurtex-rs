@@ -45,10 +45,7 @@ impl CollectorRegistryOps {
   ) -> Result<(), AnyError> {
     let run_mode = CollectorRunMode::from(mode);
 
-    let collector_ctx = op_state
-      .try_borrow_mut::<CollectorContext>()
-      .context("error while accessing collector context")?;
-
+    let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
     let current_node = collector_ctx.get_current_node();
 
     current_node
@@ -74,7 +71,7 @@ impl CollectorRegistryOps {
     println!("{:?}", "node registered");
 
     let node_collector =
-      MutRc::new(NodeCollectorManager::new(identifier, run_mode));
+      MutRc::new(NodeCollectorManager::new_with_factory(identifier, run_mode, factory));
     let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
 
     collector_ctx.register_node(node_collector);
