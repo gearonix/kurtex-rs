@@ -1,12 +1,11 @@
 use std::borrow::Cow;
-use std::rc::Rc;
 
-use crate::deno::module_resolver::extract_op_state;
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::{v8, OpState};
 use mut_rc::MutRc;
 
+use crate::deno::module_resolver::extract_op_state;
 use crate::runner::collector::{
   CollectorIdentifier, CollectorRunMode, NodeCollectorManager,
 };
@@ -49,9 +48,9 @@ impl CollectorRegistryOps {
     let collector_ctx = op_state
       .try_borrow_mut::<CollectorContext>()
       .context("error while accessing collector context")?;
-    
+
     let current_node = collector_ctx.get_current_node();
-    
+
     current_node
       .with_mut(|node| {
         node.register_task(identifier, callback, run_mode);
@@ -68,8 +67,11 @@ impl CollectorRegistryOps {
     #[global] factory: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
+    println!("{:?}", identifier);
     let identifier = CollectorIdentifier::Custom(identifier);
     let run_mode = CollectorRunMode::from(mode);
+
+    println!("{:?}", "node registered");
 
     let node_collector =
       MutRc::new(NodeCollectorManager::new(identifier, run_mode));

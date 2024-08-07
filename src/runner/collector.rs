@@ -140,7 +140,8 @@ impl std::fmt::Debug for CollectorFile {
     f.debug_struct("CollectorFile")
       .field("file", &self.file_path)
       .field("collected", &self.collected.borrow())
-      .field("nodes", &self.nodes.borrow().iter().map(|n| n)).finish()
+      .field("nodes", &self.nodes.borrow().iter().map(|n| n))
+      .finish()
   }
 }
 

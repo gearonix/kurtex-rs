@@ -60,8 +60,6 @@ impl RuntimeConfig {
   }
 }
 
-
-
 impl RuntimeManager {
   pub fn start(opts: &RuntimeOptions) -> Result<(), AnyError> {
     let root_dir = opts.root.clone();

@@ -14,10 +14,10 @@ const { core } = Deno
 const { ops } = core
 
 function registerTaskImpl(runMode: CollectorRunMode): TaskCell {
-  return (identifier: string, callback: TestCallback) => {
+  return (identifier: string, callback: TestCallback | undefined) => {
     kurtexInternalGate.registerCollectorTask(
       identifier,
-      runMode === 'todo' ? () => {} : callback,
+      callback && runMode !== 'todo' ? callback : () => {},
       runMode
     )
   }

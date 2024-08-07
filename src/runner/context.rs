@@ -43,7 +43,7 @@ impl CollectorContext {
     let mut all_nodes = self.nodes.clone();
     let default_node = self.default_node.clone();
     all_nodes.push(default_node);
-    
+
     all_nodes
   }
 }

@@ -8,7 +8,7 @@ export type TestFactory = (
 // TODO: improve namings
 
 export interface TaskCell {
-  (identifier: string, fn: TestCallback): void
+  (identifier: string, fn?: TestCallback): void
 }
 
 export interface CreateNodeCell {

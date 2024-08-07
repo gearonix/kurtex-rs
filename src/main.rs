@@ -9,7 +9,7 @@ use deno_core::error::AnyError;
 use find_up::find_up_files;
 use runtime::runtime::RuntimeManager;
 
-use crate::context::{CLI_CONFIG, ContextProvider, TOKIO_RUNTIME};
+use crate::context::{ContextProvider, CLI_CONFIG, TOKIO_RUNTIME};
 use crate::error::CliError;
 use crate::runtime::runtime::RuntimeOptions;
 
@@ -65,7 +65,7 @@ fn main() -> Result<(), AnyError> {
     .root
     .as_deref()
     .map(PathBuf::from)
-      // TODO: rewrite to execute dir
+    // TODO: rewrite to execute dir
     .unwrap_or_else(|| env::current_dir().unwrap());
 
   let config_path = args
@@ -81,10 +81,7 @@ fn main() -> Result<(), AnyError> {
 
     ContextProvider::init_once(&CLI_CONFIG, cli_config);
 
-    RuntimeManager::start(&RuntimeOptions {
-      root: root_dir,
-      files: Vec::new(),
-    })
+    RuntimeManager::start(&RuntimeOptions { root: root_dir, files: Vec::new() })
   } else {
     eprintln!("kurtex: {}", CliError::ConfigPathNotFound);
     exit(exits::RUNTIME_ERROR);

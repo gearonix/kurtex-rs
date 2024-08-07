@@ -1,6 +1,6 @@
 use deno_core::anyhow::Context;
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -54,6 +54,22 @@ impl Runner {
 
       let mut resolver = esm_resolver.borrow_mut();
 
+      fn clear_collector_context(
+        resolver: &mut EsmModuleResolver,
+      ) -> Result<(), AnyError> {
+        let op_state = resolver.get_op_state()?;
+        let mut op_state = op_state.borrow_mut();
+
+        let collector_ctx =
+          extract_op_state::<CollectorContext>(&mut op_state)?;
+
+        collector_ctx.clear();
+
+        Ok(())
+      }
+
+      clear_collector_context(&mut resolver).unwrap();
+
       let module_id = resolver
         .process_esm_file(file_path.display().to_string(), false)
         .await
@@ -63,9 +79,10 @@ impl Runner {
       let mut op_state = op_state.borrow_mut();
       let collector_ctx = extract_op_state::<CollectorContext>(&mut op_state)?;
 
-      collector_ctx.clear();
       let obtained_collectors = collector_ctx.get_all_nodes();
-      
+
+      println!("obtained_collectors.len: {:?}", obtained_collectors.len());
+
       for collector in obtained_collectors {
         // TODO: rewrite RcMutMutateError
         let collected_node = collector
@@ -83,7 +100,7 @@ impl Runner {
 
         collector_ctx.register_node(collector);
       }
-      
+
       *collector_file.collected.borrow_mut() = true;
 
       Ok(collector_file)
