@@ -1,27 +1,33 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
+use deno_core::futures::StreamExt;
 use globwalk;
 use mut_rc::MutRc;
 
-use crate::CLI_CONFIG;
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{
-  EsmModuleResolver, EsmResolverOptions, extract_op_state, extract_op_state_mut,
+  extract_op_state, extract_op_state_mut, EsmModuleResolver, EsmResolverOptions,
 };
-use crate::runner::collector::{CollectorFile, NodeCollectorManager};
-use crate::runner::context::CollectorContext;
+use crate::runner::collector::{
+  CollectorFile, CollectorNode, CollectorRunMode, NodeCollectorManager,
+};
+use crate::runner::context::{CollectorContext, CollectorMetadata};
 use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
 use crate::runtime::runtime::RuntimeConfig;
 use crate::utils::tokio::{create_pinned_future, run_concurrently};
+use crate::CLI_CONFIG;
 
 const TEST_FILES_MAX_DEPTH: u32 = 25;
 
 pub struct Runner;
+
+type CollectorFileMap = HashMap<PathBuf, Rc<CollectorFile>>;
 
 impl Runner {
   pub async fn run_with_options() -> Result<(), AnyError> {
@@ -91,6 +97,7 @@ impl Runner {
       let op_state = resolver.get_op_state()?;
       let op_state = op_state.borrow();
       let collector_ctx = extract_op_state::<CollectorContext>(&op_state)?;
+      let collector_meta = extract_op_state::<CollectorMetadata>(&op_state)?;
 
       let obtained_collectors = collector_ctx.get_all_collectors();
       let obtained_collectors = obtained_collectors.borrow();
@@ -109,6 +116,17 @@ impl Runner {
           })
           .unwrap()?;
 
+        {
+          let running_mode = collected_node.mode.borrow();
+
+          match *running_mode {
+            CollectorRunMode::Only => {
+              *collector_meta.only_mode.borrow_mut() = true
+            }
+            _ => (),
+          }
+        }
+
         let mut file_nodes = collector_file.nodes.borrow_mut();
         file_nodes.push(collected_node);
       }
@@ -119,24 +137,39 @@ impl Runner {
     }
 
     let processed_tasks = Self::collect_test_files(&runtime_config)?
-      .map(move |file_path: PathBuf| {
+      .map(|file_path: PathBuf| {
         let esm_resolver = Rc::clone(&esm_resolver);
+
         create_pinned_future(process_test_file(esm_resolver, file_path))
       })
       .collect();
 
     if runtime_opts.parallel {
       panic!("Parallel execution is not supported yet");
-      
-      let files = run_concurrently(processed_tasks).await;
 
+      let files = run_concurrently(processed_tasks).await;
       println!("files: {:#?}", files);
     } else {
+      let mut file_map: CollectorFileMap = HashMap::new();
+
       for task in processed_tasks {
         let file = task().await?;
-
+        
         println!("file: {:#?}", file);
+        let file_path = file.file_path.clone();
+
+        file_map.insert(file_path, file);
       }
+
+      let mut resolver = esm_resolver.borrow_mut();
+      let op_state = resolver.get_op_state()?;
+      let op_state = op_state.borrow();
+
+      let collector_meta = extract_op_state::<CollectorMetadata>(&op_state)?;
+
+      Self::interpret_only_mode(&mut file_map, &collector_meta);
+
+      println!("file_map: {:#?}", file_map);
     }
 
     Ok(())
@@ -163,6 +196,31 @@ impl Runner {
     Ok(included_cases.filter(move |included_path| {
       !excluded_cases.any(|excluded_path| excluded_path.eq(included_path))
     }))
+  }
+
+  fn interpret_only_mode(
+    file_map: &mut CollectorFileMap,
+    meta: &CollectorMetadata,
+  ) {
+    let only_mode_enabled = meta.only_mode.borrow();
+
+    only_mode_enabled.then(|| {
+      for file in file_map.values() {
+        let mut nodes = file.nodes.borrow_mut();
+
+        for node in nodes.iter_mut() {
+          let mut running_mode = node.mode.borrow_mut();
+
+          let updated_mode = match *running_mode {
+            CollectorRunMode::Run => CollectorRunMode::Skip,
+            CollectorRunMode::Only => CollectorRunMode::Run,
+            other => other,
+          };
+
+          *running_mode = updated_mode
+        }
+      }
+    });
   }
 
   pub fn run() {}

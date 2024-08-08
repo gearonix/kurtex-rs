@@ -9,7 +9,7 @@ use crate::deno::module_resolver::{extract_op_state, extract_op_state_mut};
 use crate::runner::collector::{
   CollectorIdentifier, CollectorRunMode, NodeCollectorManager,
 };
-use crate::runner::context::CollectorContext;
+use crate::runner::context::{CollectorContext, CollectorMetadata};
 
 pub struct BindingsResolver {
   pub bindings: Vec<deno_core::Extension>,
@@ -49,7 +49,6 @@ impl CollectorRegistryOps {
     #[global] callback: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
-
     let run_mode = CollectorRunMode::from(mode);
 
     let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
@@ -91,8 +90,10 @@ impl OpsLoader for CollectorRegistryOps {
   fn load(&self) -> deno_core::Extension {
     let provide_state = Box::new(move |op_state: &mut deno_core::OpState| {
       let collector_ctx = CollectorContext::new();
+      let collector_meta = CollectorMetadata::default();
 
       op_state.put(collector_ctx);
+      op_state.put(collector_meta)
     });
 
     let collector_registry_ops: Vec<deno_core::OpDecl> = Vec::from([

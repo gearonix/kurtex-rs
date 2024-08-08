@@ -12,6 +12,11 @@ pub struct CollectorContext {
   default_node: MutRc<NodeCollectorManager>,
 }
 
+#[derive(Default)]
+pub struct CollectorMetadata {
+  pub(crate) only_mode: RefCell<bool>,
+}
+
 impl CollectorContext {
   pub fn new() -> Self {
     let file_node = MutRc::new(NodeCollectorManager::new(
@@ -42,7 +47,9 @@ impl CollectorContext {
     *self.current_node.borrow_mut() = self.default_node.clone()
   }
 
-  pub fn get_all_collectors(&self) -> RefCell<Vec<MutRc<NodeCollectorManager>>> {
+  pub fn get_all_collectors(
+    &self,
+  ) -> RefCell<Vec<MutRc<NodeCollectorManager>>> {
     let all_nodes = self.nodes.clone();
     all_nodes.borrow_mut().push(self.default_node.clone());
 
