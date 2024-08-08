@@ -1,24 +1,23 @@
-use deno_core::anyhow::Context;
 use std::borrow::Cow;
-use std::cell::{RefCell, RefMut};
-use std::ops::Deref;
+use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use globwalk;
 use mut_rc::MutRc;
 
+use crate::CLI_CONFIG;
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{
-  extract_op_state, extract_op_state_mut, EsmModuleResolver, EsmResolverOptions,
+  EsmModuleResolver, EsmResolverOptions, extract_op_state, extract_op_state_mut,
 };
 use crate::runner::collector::{CollectorFile, NodeCollectorManager};
 use crate::runner::context::CollectorContext;
 use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
 use crate::runtime::runtime::RuntimeConfig;
 use crate::utils::tokio::{create_pinned_future, run_concurrently};
-use crate::CLI_CONFIG;
 
 const TEST_FILES_MAX_DEPTH: u32 = 25;
 
@@ -127,6 +126,8 @@ impl Runner {
       .collect();
 
     if runtime_opts.parallel {
+      panic!("Parallel execution is not supported yet");
+      
       let files = run_concurrently(processed_tasks).await;
 
       println!("files: {:#?}", files);

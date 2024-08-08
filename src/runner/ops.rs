@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
-use deno_core::{v8, OpState};
+use deno_core::{v8, OpState, ResourceId};
 use mut_rc::MutRc;
 
 use crate::deno::module_resolver::{extract_op_state, extract_op_state_mut};
@@ -31,18 +31,25 @@ pub trait OpsLoader {
   fn load(&self) -> deno_core::Extension;
 }
 
+// TODO: AsyncRefCell
+
 impl CollectorRegistryOps {
   pub fn new() -> Self {
     CollectorRegistryOps {}
   }
 
   #[deno_core::op2]
+  // TODO
+  #[meta(sanitizer_details = "")]
+  #[meta(sanitizer_fix = "")]
   fn op_register_collector_task(
+    scope: &mut v8::HandleScope,
     op_state: &OpState,
     #[string] identifier: String,
     #[global] callback: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
+
     let run_mode = CollectorRunMode::from(mode);
 
     let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
@@ -57,6 +64,9 @@ impl CollectorRegistryOps {
   }
 
   #[deno_core::op2]
+  // TODO
+  #[meta(sanitizer_details = "")]
+  #[meta(sanitizer_fix = "")]
   fn op_register_collector_node<'a>(
     op_state: &OpState,
     #[string] identifier: String,
@@ -73,7 +83,6 @@ impl CollectorRegistryOps {
 
     collector_ctx.register_node(node_collector);
 
-    // TODO: return type
     Ok(())
   }
 }
