@@ -11,7 +11,7 @@ use mut_rc::MutRc;
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{
-  extract_op_state, EsmModuleResolver, EsmResolverOptions,
+  extract_op_state, extract_op_state_mut, EsmModuleResolver, EsmResolverOptions,
 };
 use crate::runner::collector::{CollectorFile, NodeCollectorManager};
 use crate::runner::context::CollectorContext;
@@ -62,7 +62,7 @@ impl Runner {
         let mut op_state = op_state.borrow_mut();
 
         let collector_ctx =
-          extract_op_state::<CollectorContext>(&mut op_state)?;
+          extract_op_state_mut::<CollectorContext>(&mut op_state)?;
 
         collector_ctx.clear();
 
@@ -73,7 +73,7 @@ impl Runner {
         clr: MutRc<NodeCollectorManager>,
         resolver: &mut EsmModuleResolver,
       ) {
-        let clr = clr.finalize().unwrap();
+        let clr = clr.get_clone().unwrap();
         let node_factory = clr.get_node_factory();
 
         if let Some(factory) = node_factory {
@@ -81,22 +81,22 @@ impl Runner {
         }
       }
 
-      clear_collector_context(&mut resolver).unwrap();
+      clear_collector_context(&mut resolver)?;
 
+      #[allow(unused)]
       let module_id = resolver
         .process_esm_file(file_path.display().to_string(), false)
         .await
         .unwrap();
 
       let op_state = resolver.get_op_state()?;
-      let mut op_state = op_state.borrow_mut();
-      let collector_ctx = extract_op_state::<CollectorContext>(&mut op_state)?;
+      let op_state = op_state.borrow();
+      let collector_ctx = extract_op_state::<CollectorContext>(&op_state)?;
 
-      let obtained_collectors = collector_ctx.get_all_nodes();
+      let obtained_collectors = collector_ctx.get_all_collectors();
+      let obtained_collectors = obtained_collectors.borrow();
 
-      println!("obtained_collectors.len: {:?}", obtained_collectors.len());
-
-      for collector in obtained_collectors {
+      for collector in obtained_collectors.iter() {
         collector_ctx.register_node(collector.clone());
 
         run_factory(collector.clone(), &mut resolver).await;
@@ -109,8 +109,6 @@ impl Runner {
               .context("manager has been already collected")
           })
           .unwrap()?;
-
-        println!("collected_node: {:?}", collected_node);
 
         let mut file_nodes = collector_file.nodes.borrow_mut();
         file_nodes.push(collected_node);
@@ -131,10 +129,12 @@ impl Runner {
     if runtime_opts.parallel {
       let files = run_concurrently(processed_tasks).await;
 
-      println!("files: {:?}", files);
+      println!("files: {:#?}", files);
     } else {
       for task in processed_tasks {
-        task().await;
+        let file = task().await?;
+
+        println!("file: {:#?}", file);
       }
     }
 

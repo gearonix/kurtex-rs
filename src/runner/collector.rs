@@ -5,7 +5,7 @@ use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub enum CollectorRunMode {
   #[default]
   Run,
@@ -35,6 +35,7 @@ impl From<String> for CollectorRunMode {
   }
 }
 
+#[derive(Clone)]
 pub struct NodeCollectorManager {
   task_queue: Vec<Rc<CollectorTask>>,
   collector_node: Rc<CollectorNode>,
@@ -172,7 +173,10 @@ impl std::fmt::Debug for CollectorNode {
       CollectorIdentifier::File => "file",
     };
 
-    f.debug_struct("CollectorNode").field("name", &identifier).finish()
+    f.debug_struct("CollectorNode")
+      .field("name", &identifier)
+      .field("tasks", &self.tasks.borrow().iter().map(|n| n))
+      .finish()
   }
 }
 
@@ -185,6 +189,15 @@ pub struct CollectorTask {
   file: RefCell<Weak<CollectorFile>>,
   state: CollectorSuiteState,
   callback: TestCallback,
+}
+
+impl std::fmt::Debug for CollectorTask {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("CollectorTask")
+      .field("name", &self.name)
+      .field("mode", &self.mode)
+      .finish()
+  }
 }
 
 impl CollectorTask {

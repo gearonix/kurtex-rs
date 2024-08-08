@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::convert::From;
 use std::env;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use deno_core::{ModuleId, v8};
@@ -137,7 +137,7 @@ impl EsmSerdeResolver {
 }
 
 // TODO: move somewhere
-pub fn extract_op_state<R>(
+pub fn extract_op_state_mut<R>(
   op_state: &mut deno_core::OpState,
 ) -> Result<&mut R, AnyError>
 where
@@ -147,4 +147,16 @@ where
     .deref_mut()
     .try_borrow_mut::<R>()
     .context("error while accessing op_state")
+}
+
+pub fn extract_op_state<R>(
+  op_state: &deno_core::OpState,
+) -> Result<&R, AnyError>
+  where
+      R: 'static,
+{
+  op_state
+      .deref()
+      .try_borrow::<R>()
+      .context("error while accessing op_state")
 }

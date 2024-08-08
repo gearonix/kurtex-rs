@@ -5,7 +5,7 @@ use deno_core::error::AnyError;
 use deno_core::{v8, OpState};
 use mut_rc::MutRc;
 
-use crate::deno::module_resolver::extract_op_state;
+use crate::deno::module_resolver::{extract_op_state, extract_op_state_mut};
 use crate::runner::collector::{
   CollectorIdentifier, CollectorRunMode, NodeCollectorManager,
 };
@@ -38,7 +38,7 @@ impl CollectorRegistryOps {
 
   #[deno_core::op2]
   fn op_register_collector_task(
-    op_state: &mut OpState,
+    op_state: &OpState,
     #[string] identifier: String,
     #[global] callback: v8::Global<v8::Function>,
     #[string] mode: String,
@@ -47,11 +47,10 @@ impl CollectorRegistryOps {
 
     let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
     let current_node = collector_ctx.get_current_node();
+    let current_node = current_node.borrow_mut();
 
     current_node
-      .with_mut(|node| {
-        node.register_task(identifier, callback, run_mode);
-      })
+      .with_mut(|task| task.register_task(identifier, callback, run_mode))
       .unwrap();
 
     Ok(())
@@ -59,19 +58,17 @@ impl CollectorRegistryOps {
 
   #[deno_core::op2]
   fn op_register_collector_node<'a>(
-    op_state: &mut OpState,
+    op_state: &OpState,
     #[string] identifier: String,
     #[global] factory: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
-    println!("{:?}", identifier);
     let identifier = CollectorIdentifier::Custom(identifier);
     let run_mode = CollectorRunMode::from(mode);
 
-    println!("{:?}", "node registered");
-
-    let node_collector =
-      MutRc::new(NodeCollectorManager::new_with_factory(identifier, run_mode, factory));
+    let node_collector = MutRc::new(NodeCollectorManager::new_with_factory(
+      identifier, run_mode, factory,
+    ));
     let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
 
     collector_ctx.register_node(node_collector);
