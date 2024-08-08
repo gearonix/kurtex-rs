@@ -16,7 +16,8 @@ use crate::deno::module_resolver::{
   extract_op_state, extract_op_state_mut, EsmModuleResolver, EsmResolverOptions,
 };
 use crate::runner::collector::{
-  CollectorFile, CollectorNode, CollectorRunMode, NodeCollectorManager,
+  CollectorFile, CollectorMode, CollectorNode, CollectorState,
+  NodeCollectorManager,
 };
 use crate::runner::context::{CollectorContext, CollectorMetadata};
 use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
@@ -121,7 +122,7 @@ impl Runner {
           let running_mode = collected_node.mode.borrow();
 
           match *running_mode {
-            CollectorRunMode::Only => {
+            CollectorMode::Only => {
               *collector_meta.only_mode.borrow_mut() = true
             }
             _ => (),
@@ -165,7 +166,7 @@ impl Runner {
 
       let collector_meta = extract_op_state::<CollectorMetadata>(&op_state)?;
 
-      Self::interpret_only_mode(&mut file_map, &collector_meta);
+      Self::normalize_mode_settings(&mut file_map, &collector_meta);
 
       println!("file_map: {:#?}", file_map);
     }
@@ -196,28 +197,63 @@ impl Runner {
     }))
   }
 
-  fn interpret_only_mode(
+  fn normalize_mode_settings(
     file_map: &mut CollectorFileMap,
     meta: &CollectorMetadata,
   ) {
-    let only_mode_enabled = meta.only_mode.borrow();
+    let only_mode_enabled = *meta.only_mode.borrow();
 
-    only_mode_enabled.then(|| {
-      for file in file_map.values() {
-        let mut nodes = file.nodes.borrow_mut();
+    let interpret_only_mode =
+      move |target_mode: &mut CollectorMode, scoped_only_mode: bool| {
+        let should_update = scoped_only_mode || only_mode_enabled;
 
-        for node in nodes.iter_mut() {
-          let mut running_mode = node.mode.borrow_mut();
-
-          let updated_mode = match *running_mode {
-            CollectorRunMode::Run => CollectorRunMode::Skip,
-            CollectorRunMode::Only => CollectorRunMode::Run,
-            other => other,
+        should_update.then(|| {
+          let updated_mode = match *target_mode {
+            CollectorMode::Run => CollectorMode::Skip,
+            CollectorMode::Only => CollectorMode::Run,
+            rest => rest,
           };
 
-          *running_mode = updated_mode
+          *target_mode = updated_mode;
+        });
+      };
+
+    for file in file_map.values() {
+      let mut nodes = file.nodes.borrow_mut();
+
+      for file_node in nodes.iter_mut() {
+        let mut running_mode = file_node.mode.borrow_mut();
+
+        interpret_only_mode(&mut running_mode, false);
+
+        let mut node_tasks = file_node.tasks.borrow_mut();
+        let mut task_iter = node_tasks.iter_mut().peekable();
+        let mut scoped_only_mode = false;
+
+        while let Some(task) = task_iter.next() {
+          let mut task_mode = task.mode.borrow_mut();
+          let mut task_state = task.state.borrow_mut();
+
+          match *running_mode {
+            CollectorMode::Skip => *task_mode = CollectorMode::Skip,
+            CollectorMode::Run => (),
+            _ => interpret_only_mode(&mut task_mode, scoped_only_mode),
+          };
+
+          match *task_mode {
+            CollectorMode::Skip => {
+              let updated_state = CollectorState::Custom(CollectorMode::Skip);
+              *task_state = updated_state
+            }
+            // TODO: bug with subsequent only dispatch
+            CollectorMode::Only => {
+              scoped_only_mode = true;
+              *task_mode = CollectorMode::Run
+            }
+            _ => (),
+          };
         }
       }
-    });
+    }
   }
 }

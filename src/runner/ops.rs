@@ -7,7 +7,7 @@ use mut_rc::MutRc;
 
 use crate::deno::module_resolver::{extract_op_state, extract_op_state_mut};
 use crate::runner::collector::{
-  CollectorIdentifier, CollectorRunMode, NodeCollectorManager,
+  CollectorIdentifier, CollectorMode, NodeCollectorManager,
 };
 use crate::runner::context::{CollectorContext, CollectorMetadata};
 
@@ -49,7 +49,7 @@ impl CollectorRegistryOps {
     #[global] callback: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
-    let run_mode = CollectorRunMode::from(mode);
+    let run_mode = CollectorMode::from(mode);
 
     let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
     let current_node = collector_ctx.get_current_node();
@@ -73,7 +73,7 @@ impl CollectorRegistryOps {
     #[string] mode: String,
   ) -> Result<(), AnyError> {
     let identifier = CollectorIdentifier::Custom(identifier);
-    let run_mode = CollectorRunMode::from(mode);
+    let run_mode = CollectorMode::from(mode);
 
     let node_collector = MutRc::new(NodeCollectorManager::new_with_factory(
       identifier, run_mode, factory,

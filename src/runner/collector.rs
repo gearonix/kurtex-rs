@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
-pub enum CollectorRunMode {
+pub enum CollectorMode {
   #[default]
   Run,
   Skip,
@@ -15,19 +15,19 @@ pub enum CollectorRunMode {
 }
 
 #[derive(Clone, Copy)]
-pub enum CollectorSuiteState {
-  Running(CollectorRunMode),
-  Skip,
+pub enum CollectorState {
+  Custom(CollectorMode),
+  Fail,
   Pass,
 }
 
-impl From<String> for CollectorRunMode {
+impl From<String> for CollectorMode {
   fn from(value: String) -> Self {
     match value.as_str() {
-      "run" => CollectorRunMode::Run,
-      "skip" => CollectorRunMode::Skip,
-      "only" => CollectorRunMode::Only,
-      "todo" => CollectorRunMode::Todo,
+      "run" => CollectorMode::Run,
+      "skip" => CollectorMode::Skip,
+      "only" => CollectorMode::Only,
+      "todo" => CollectorMode::Todo,
       _ => {
         panic!("Invalid CollectorRunMode variant: '{}'", value)
       }
@@ -68,13 +68,13 @@ impl NodeCollectorManager {
   pub fn new_with_file() -> Self {
     NodeCollectorManager {
       on_file_level: true,
-      ..Self::new(CollectorIdentifier::File, CollectorRunMode::Run, None)
+      ..Self::new(CollectorIdentifier::File, CollectorMode::Run, None)
     }
   }
 
   pub fn new(
     identifier: CollectorIdentifier,
-    mode: CollectorRunMode,
+    mode: CollectorMode,
     node_factory: Option<TestCallback>,
   ) -> Self {
     let task_queue: Vec<Rc<CollectorTask>> = Vec::new();
@@ -95,7 +95,7 @@ impl NodeCollectorManager {
 
   pub fn new_with_factory(
     identifier: CollectorIdentifier,
-    mode: CollectorRunMode,
+    mode: CollectorMode,
     factory: TestCallback,
   ) -> Self {
     Self::new(identifier, mode, Some(factory))
@@ -138,7 +138,7 @@ impl NodeCollectorManager {
     &mut self,
     name: String,
     callback: TestCallback,
-    mode: CollectorRunMode,
+    mode: CollectorMode,
   ) {
     let created_task = Rc::new(CollectorTask::new(name, callback, mode));
     self.task_queue.push(created_task);
@@ -201,10 +201,10 @@ impl std::fmt::Debug for CollectorFile {
 #[derive(Default)]
 pub struct CollectorNode {
   pub(crate) identifier: CollectorIdentifier,
-  pub(crate) mode: RefCell<CollectorRunMode>,
-  tasks: RefCell<Vec<Rc<CollectorTask>>>,
+  pub(crate) mode: RefCell<CollectorMode>,
+  pub(crate) tasks: RefCell<Vec<Rc<CollectorTask>>>,
   file: RefCell<Weak<CollectorFile>>,
-  status: Option<CollectorSuiteState>,
+  status: Option<CollectorState>,
   hook_manager: RefCell<LifetimeHookManager>,
 }
 
@@ -220,12 +220,14 @@ impl std::fmt::Debug for CollectorNode {
 
 type TestCallback = v8::Global<v8::Function>;
 
+// TODO think about making whole struct
+// RefCell instead of fields
 pub struct CollectorTask {
-  name: String,
-  mode: CollectorRunMode,
+  pub(crate) name: String,
+  pub(crate) mode: RefCell<CollectorMode>,
+  pub(crate) state: RefCell<CollectorState>,
   node: RefCell<Weak<CollectorNode>>,
   file: RefCell<Weak<CollectorFile>>,
-  state: CollectorSuiteState,
   callback: TestCallback,
 }
 
@@ -242,14 +244,14 @@ impl CollectorTask {
   pub fn new(
     name: String,
     callback: TestCallback,
-    mode: CollectorRunMode,
+    mode: CollectorMode,
   ) -> Self {
     CollectorTask {
       name,
-      mode,
+      mode: RefCell::new(mode),
       file: RefCell::new(Weak::new()),
       node: RefCell::new(Weak::new()),
-      state: CollectorSuiteState::Running(mode),
+      state: RefCell::new(CollectorState::Custom(mode)),
       callback,
     }
   }
