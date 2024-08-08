@@ -35,22 +35,43 @@ impl From<String> for CollectorRunMode {
   }
 }
 
-#[derive(Clone)]
-pub struct NodeCollectorManager {
-  task_queue: Vec<Rc<CollectorTask>>,
-  collector_node: Rc<CollectorNode>,
-  has_collected: bool,
-  node_factory: Option<TestCallback>,
-}
-
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub enum CollectorIdentifier {
   #[default]
   File,
   Custom(String),
 }
 
+impl std::fmt::Debug for CollectorIdentifier {
+  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    const FILE_IDENT: &'static str = "$$file";
+
+    let identifier = match self {
+      CollectorIdentifier::Custom(e) => &e,
+      CollectorIdentifier::File => FILE_IDENT,
+    };
+
+    write!(f, "{identifier:?}")
+  }
+}
+
+#[derive(Clone)]
+pub struct NodeCollectorManager {
+  task_queue: Vec<Rc<CollectorTask>>,
+  collector_node: Rc<CollectorNode>,
+  has_collected: bool,
+  node_factory: Option<TestCallback>,
+  on_file_level: bool,
+}
+
 impl NodeCollectorManager {
+  pub fn new_with_file() -> Self {
+    NodeCollectorManager {
+      on_file_level: true,
+      ..Self::new(CollectorIdentifier::File, CollectorRunMode::Run, None)
+    }
+  }
+
   pub fn new(
     identifier: CollectorIdentifier,
     mode: CollectorRunMode,
@@ -67,6 +88,7 @@ impl NodeCollectorManager {
       collector_node,
       task_queue,
       has_collected: false,
+      on_file_level: false,
       node_factory,
     }
   }
@@ -132,8 +154,25 @@ impl NodeCollectorManager {
   }
 
   pub fn reset_state(&mut self) {
-    self.task_queue.clear();
-    self.has_collected = false;
+    self
+      .on_file_level
+      .then(|| {
+        self.task_queue.clear();
+        self.has_collected = false;
+
+        let node = &self.collector_node;
+        let identifier = node.identifier.clone();
+        let mode = node.mode.clone();
+
+        self.collector_node = Rc::new(CollectorNode {
+          identifier,
+          mode,
+          ..CollectorNode::default()
+        });
+      })
+      .unwrap_or_else(|| {
+        panic!("Resetting state is only allowed when on_file_level is true.")
+      })
   }
 
   pub fn get_node_factory(&self) -> &Option<TestCallback> {
@@ -171,13 +210,9 @@ pub struct CollectorNode {
 
 impl std::fmt::Debug for CollectorNode {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    let identifier = match &self.identifier {
-      CollectorIdentifier::Custom(e) => &e,
-      CollectorIdentifier::File => "file",
-    };
-
     f.debug_struct("CollectorNode")
-      .field("name", &identifier)
+      .field("name", &self.identifier)
+      .field("mode", &self.mode.borrow())
       .field("tasks", &self.tasks.borrow().iter().map(|n| n))
       .finish()
   }

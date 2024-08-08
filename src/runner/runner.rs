@@ -9,6 +9,7 @@ use deno_core::error::AnyError;
 use deno_core::futures::StreamExt;
 use globwalk;
 use mut_rc::MutRc;
+use reqwest::get;
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{
@@ -103,7 +104,7 @@ impl Runner {
       let obtained_collectors = obtained_collectors.borrow();
 
       for collector in obtained_collectors.iter() {
-        collector_ctx.register_node(collector.clone());
+        collector_ctx.set_current_node(collector.clone());
 
         run_factory(collector.clone(), &mut resolver).await;
 
@@ -145,8 +146,6 @@ impl Runner {
       .collect();
 
     if runtime_opts.parallel {
-      panic!("Parallel execution is not supported yet");
-
       let files = run_concurrently(processed_tasks).await;
       println!("files: {:#?}", files);
     } else {
@@ -154,8 +153,7 @@ impl Runner {
 
       for task in processed_tasks {
         let file = task().await?;
-        
-        println!("file: {:#?}", file);
+
         let file_path = file.file_path.clone();
 
         file_map.insert(file_path, file);
@@ -222,6 +220,4 @@ impl Runner {
       }
     });
   }
-
-  pub fn run() {}
 }
