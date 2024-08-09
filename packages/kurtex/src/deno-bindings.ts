@@ -3,6 +3,7 @@ import type {
   CreateNode,
   KurtexInternals,
   KurtexPublicApi,
+  LifetimeHookType,
   ObjectEntry,
   TaskCell,
   Test,
@@ -15,7 +16,7 @@ const { ops } = core
 
 function registerTaskImpl(runMode: CollectorRunMode): TaskCell {
   return (identifier: string, callback: TestCallback | undefined) => {
-    kurtexInternalGate.registerCollectorTask(
+    kurtexInternals.registerCollectorTask(
       identifier,
       callback && runMode !== 'todo' ? callback : () => {},
       runMode
@@ -25,11 +26,17 @@ function registerTaskImpl(runMode: CollectorRunMode): TaskCell {
 
 function registerNodeImpl(runMode: CollectorRunMode) {
   return (identifier: string, factory?: TestFactory) => {
-    kurtexInternalGate.registerCollectorNode(
+    kurtexInternals.registerCollectorNode(
       identifier,
       factory && runMode !== 'todo' ? factory : () => {},
       runMode
     )
+  }
+}
+
+function registerLifetimeHookImpl(hook: LifetimeHookType) {
+  return (callback: TestCallback) => {
+    kurtexInternals.registerLifetimeHook(hook, callback)
   }
 }
 
@@ -44,12 +51,20 @@ registerNode.only = registerNodeImpl('only')
 registerNode.skip = registerNodeImpl('skip')
 registerNode.todo = registerNodeImpl('todo')
 
-const kurtexInternalGate = {
+const beforeAllHook = registerLifetimeHookImpl('beforeAll')
+const afterAllHook = registerLifetimeHookImpl('afterAll')
+const beforeEachHook = registerLifetimeHookImpl('beforeEach')
+const afterEachHook = registerLifetimeHookImpl('afterEach')
+
+const kurtexInternals = {
   registerCollectorTask(identifier, callback, mode) {
     ops.op_register_collector_task(identifier, callback, mode)
   },
   registerCollectorNode(identifier, factory, mode) {
     ops.op_register_collector_node(identifier, factory, mode)
+  },
+  registerLifetimeHook(hook, callback) {
+    ops.op_register_lifetime_hook(hook, callback)
   }
 } satisfies KurtexInternals
 
@@ -58,7 +73,11 @@ const kurtexPublicApi = {
   it: registerTask,
   createNode: registerNode,
   describe: registerNode,
-  suite: registerNode
+  suite: registerNode,
+  beforeAll: beforeAllHook,
+  afterAll: afterAllHook,
+  beforeEach: beforeEachHook,
+  afterEach: afterEachHook
 } satisfies KurtexPublicApi
 
 function registerApiGlobally() {
@@ -73,6 +92,6 @@ function registerApiGlobally() {
 }
 
 // @ts-expect-error globalThis is not supported by Deno plugin
-globalThis._kurtexInternals = kurtexInternalGate
+globalThis._kurtexInternals = kurtexInternals
 
 registerApiGlobally()

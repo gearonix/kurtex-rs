@@ -27,7 +27,14 @@ export interface CreateNode extends CreateNodeCell {
   todo: CreateNodeCell
 }
 
+export type LifetimeHook = (callback: TestCallback) => void
+
 export type CollectorRunMode = 'run' | 'skip' | 'only' | 'todo'
+export type LifetimeHookType =
+  | 'beforeAll'
+  | 'afterAll'
+  | 'beforeEach'
+  | 'afterEach'
 
 export interface KurtexInternals {
   registerCollectorTask: (
@@ -40,6 +47,7 @@ export interface KurtexInternals {
     factory: TestFactory,
     runMode: CollectorRunMode
   ) => void
+  registerLifetimeHook: (hook: LifetimeHookType, callback: TestCallback) => void
 }
 
 export interface KurtexPublicApi {
@@ -48,6 +56,10 @@ export interface KurtexPublicApi {
   createNode: CreateNode
   suite: CreateNode
   describe: Test
+  beforeAll: LifetimeHook
+  afterAll: LifetimeHook
+  beforeEach: LifetimeHook
+  afterEach: LifetimeHook
 }
 
 export type ObjectEntry<T> = {
@@ -70,6 +82,10 @@ declare global {
           factory: TestFactory,
           mode: CollectorRunMode
         ) => unknown
+        op_register_lifetime_hook: (
+          hook: LifetimeHookType,
+          callback: TestCallback
+        ) => void
       } & Record<string, (...args: any[]) => unknown>
     }
 

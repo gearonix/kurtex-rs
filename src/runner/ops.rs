@@ -7,7 +7,7 @@ use mut_rc::MutRc;
 
 use crate::deno::module_resolver::{extract_op_state, extract_op_state_mut};
 use crate::runner::collector::{
-  CollectorIdentifier, CollectorMode, NodeCollectorManager,
+  CollectorIdentifier, CollectorMode, LifetimeHook, NodeCollectorManager,
 };
 use crate::runner::context::{CollectorContext, CollectorMetadata};
 
@@ -32,7 +32,6 @@ pub trait OpsLoader {
 }
 
 // TODO: AsyncRefCell
-
 impl CollectorRegistryOps {
   pub fn new() -> Self {
     CollectorRegistryOps {}
@@ -43,20 +42,18 @@ impl CollectorRegistryOps {
   #[meta(sanitizer_details = "")]
   #[meta(sanitizer_fix = "")]
   fn op_register_collector_task(
-    scope: &mut v8::HandleScope,
-    op_state: &OpState,
+    #[state] collector_ctx: &CollectorContext,
     #[string] identifier: String,
     #[global] callback: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
     let run_mode = CollectorMode::from(mode);
 
-    let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
     let current_node = collector_ctx.get_current_node();
     let current_node = current_node.borrow_mut();
 
     current_node
-      .with_mut(|task| task.register_task(identifier, callback, run_mode))
+      .with_mut(|node| node.register_task(identifier, callback, run_mode))
       .unwrap();
 
     Ok(())
@@ -67,7 +64,7 @@ impl CollectorRegistryOps {
   #[meta(sanitizer_details = "")]
   #[meta(sanitizer_fix = "")]
   fn op_register_collector_node<'a>(
-    op_state: &OpState,
+    #[state] collector_ctx: &CollectorContext,
     #[string] identifier: String,
     #[global] factory: v8::Global<v8::Function>,
     #[string] mode: String,
@@ -78,9 +75,29 @@ impl CollectorRegistryOps {
     let node_collector = MutRc::new(NodeCollectorManager::new_with_factory(
       identifier, run_mode, factory,
     ));
-    let collector_ctx = extract_op_state::<CollectorContext>(op_state)?;
 
     collector_ctx.register_node(node_collector);
+
+    Ok(())
+  }
+
+  #[deno_core::op2]
+  // TODO
+  #[meta(sanitizer_details = "")]
+  #[meta(sanitizer_fix = "")]
+  fn op_register_lifetime_hook<'a>(
+    #[state] collector_ctx: &CollectorContext,
+    #[string] lifetime_hook: String,
+    #[global] callback: v8::Global<v8::Function>,
+  ) -> Result<(), AnyError> {
+    let lifetime_hook = LifetimeHook::from(lifetime_hook);
+
+    let current_node = collector_ctx.get_current_node();
+    let current_node = current_node.borrow_mut();
+
+    current_node
+      .with_mut(|node| node.register_lifetime_hook(lifetime_hook, callback))
+      .unwrap();
 
     Ok(())
   }
@@ -99,6 +116,7 @@ impl OpsLoader for CollectorRegistryOps {
     let collector_registry_ops: Vec<deno_core::OpDecl> = Vec::from([
       Self::op_register_collector_task,
       Self::op_register_collector_node,
+      Self::op_register_lifetime_hook
     ])
     .iter()
     .map(|cb| cb())

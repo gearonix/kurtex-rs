@@ -4,10 +4,10 @@ use std::env;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use deno_core::{ModuleId, v8};
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
+use deno_core::{v8, ModuleId};
 use serde::{Deserialize, Serialize};
 
 use crate::deno::module_loader::TsModuleLoader;
@@ -113,7 +113,7 @@ impl EsmModuleResolver {
   }
 
   // TODO: smallvec jsruntime.rs
-  pub async fn call_v8_function<'a >(
+  pub async fn call_v8_function<'a>(
     &mut self,
     callback: &'a v8::Global<v8::Function>,
   ) -> Result<v8::Global<v8::Value>, AnyError> {
@@ -152,11 +152,8 @@ where
 pub fn extract_op_state<R>(
   op_state: &deno_core::OpState,
 ) -> Result<&R, AnyError>
-  where
-      R: 'static,
+where
+  R: 'static,
 {
-  op_state
-      .deref()
-      .try_borrow::<R>()
-      .context("error while accessing op_state")
+  op_state.deref().try_borrow::<R>().context("error while accessing op_state")
 }

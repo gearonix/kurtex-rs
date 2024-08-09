@@ -1,6 +1,6 @@
 use deno_core::v8;
+use hashbrown::HashMap;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
@@ -144,7 +144,7 @@ impl NodeCollectorManager {
     self.task_queue.push(created_task);
   }
 
-  pub fn set_lifetime_hook(
+  pub fn register_lifetime_hook(
     &mut self,
     hook_key: LifetimeHook,
     callback: TestCallback,
@@ -257,7 +257,6 @@ impl CollectorTask {
   }
 }
 
-#[derive(Default)]
 pub struct LifetimeHookManager {
   hooks: HashMap<LifetimeHook, Vec<TestCallback>>,
 }
@@ -286,10 +285,28 @@ impl LifetimeHookManager {
   }
 }
 
+impl Default for LifetimeHookManager {
+  fn default() -> Self {
+    LifetimeHookManager::new()
+  }
+}
+
 #[derive(Eq, Hash, PartialEq, Debug)]
 pub enum LifetimeHook {
   BeforeAll,
   AfterAll,
   BeforeEach,
   AfterEach,
+}
+
+impl From<String> for LifetimeHook {
+  fn from(value: String) -> Self {
+    match value.as_str() {
+      "beforeAll" => LifetimeHook::BeforeAll,
+      "afterAll" => LifetimeHook::AfterAll,
+      "beforeEach" => LifetimeHook::BeforeEach,
+      "afterEach" => LifetimeHook::AfterEach,
+      _ => unreachable!(),
+    }
+  }
 }

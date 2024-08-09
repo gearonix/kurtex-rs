@@ -9,7 +9,7 @@ use deno_core::error::AnyError;
 use find_up::find_up_files;
 use runtime::runtime::RuntimeManager;
 
-use crate::context::{CLI_CONFIG, ContextProvider, TOKIO_RUNTIME};
+use crate::context::{ContextProvider, CLI_CONFIG, TOKIO_RUNTIME};
 use crate::error::CliError;
 use crate::runtime::runtime::RuntimeOptions;
 

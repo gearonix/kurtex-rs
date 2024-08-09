@@ -1093,6 +1093,7 @@ dependencies = [
  "deno_ast",
  "deno_core",
  "globwalk",
+ "hashbrown",
  "mut-rc",
  "reqwest",
  "serde",
