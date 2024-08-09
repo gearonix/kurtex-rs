@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -9,15 +9,13 @@ use deno_core::error::AnyError;
 use deno_core::futures::StreamExt;
 use globwalk;
 use mut_rc::MutRc;
-use reqwest::get;
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG};
 use crate::deno::module_resolver::{
   extract_op_state, extract_op_state_mut, EsmModuleResolver, EsmResolverOptions,
 };
 use crate::runner::collector::{
-  CollectorFile, CollectorMode, CollectorNode, CollectorState,
-  NodeCollectorManager,
+  CollectorFile, CollectorMode, CollectorState, NodeCollectorManager,
 };
 use crate::runner::context::{CollectorContext, CollectorMetadata};
 use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
@@ -203,41 +201,35 @@ impl Runner {
   ) {
     let only_mode_enabled = *meta.only_mode.borrow();
 
-    let interpret_only_mode =
-      move |target_mode: &mut CollectorMode, scoped_only_mode: bool| {
-        let should_update = scoped_only_mode || only_mode_enabled;
-
-        should_update.then(|| {
-          let updated_mode = match *target_mode {
-            CollectorMode::Run => CollectorMode::Skip,
-            CollectorMode::Only => CollectorMode::Run,
-            rest => rest,
-          };
-
-          *target_mode = updated_mode;
-        });
+    fn interpret_only_mode(target_mode: &mut CollectorMode) {
+      let updated_mode = match *target_mode {
+        CollectorMode::Run => CollectorMode::Skip,
+        CollectorMode::Only => CollectorMode::Run,
+        rest => rest,
       };
 
+      *target_mode = updated_mode;
+    }
+
+    // TODO: parallelism
     for file in file_map.values() {
       let mut nodes = file.nodes.borrow_mut();
 
       for file_node in nodes.iter_mut() {
         let mut running_mode = file_node.mode.borrow_mut();
 
-        interpret_only_mode(&mut running_mode, false);
+        only_mode_enabled.then(|| interpret_only_mode(&mut running_mode));
 
         let mut node_tasks = file_node.tasks.borrow_mut();
-        let mut task_iter = node_tasks.iter_mut().peekable();
         let mut scoped_only_mode = false;
 
-        while let Some(task) = task_iter.next() {
+        node_tasks.iter_mut().for_each(|task| {
           let mut task_mode = task.mode.borrow_mut();
           let mut task_state = task.state.borrow_mut();
 
           match *running_mode {
             CollectorMode::Skip => *task_mode = CollectorMode::Skip,
-            CollectorMode::Run => (),
-            _ => interpret_only_mode(&mut task_mode, scoped_only_mode),
+            _ => (),
           };
 
           match *task_mode {
@@ -245,14 +237,18 @@ impl Runner {
               let updated_state = CollectorState::Custom(CollectorMode::Skip);
               *task_state = updated_state
             }
-            // TODO: bug with subsequent only dispatch
-            CollectorMode::Only => {
-              scoped_only_mode = true;
-              *task_mode = CollectorMode::Run
-            }
+            CollectorMode::Only => scoped_only_mode = true,
             _ => (),
           };
-        }
+        });
+
+        scoped_only_mode.then(|| {
+          node_tasks.iter_mut().for_each(|task| {
+            let mut task_mode = task.mode.borrow_mut();
+
+            interpret_only_mode(&mut task_mode);
+          })
+        });
       }
     }
   }

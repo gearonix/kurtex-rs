@@ -1,9 +1,9 @@
 use deno_core::error::AnyError;
 use deno_core::v8::Context;
 use std::collections::HashMap;
-use std::env;
 use std::hash::Hash;
 use std::path::PathBuf;
+use std::{env, time};
 
 use crate::context::{ContextProvider, RUNTIME_CONFIG, TOKIO_RUNTIME};
 use crate::error::CliError;
@@ -75,6 +75,17 @@ impl RuntimeManager {
       },
     );
 
-    tokio.block_on(Runner::run_with_options())
+    #[cfg(debug_assertions)]
+    let debug_now = time::Instant::now();
+
+    let runner_result = tokio.block_on(Runner::run_with_options());
+
+    #[cfg(debug_assertions)]
+    {
+      let elapsed_time = debug_now.elapsed().as_millis();
+      println!("Elapsed time: {:?} ms", elapsed_time);
+    }
+
+    runner_result
   }
 }
