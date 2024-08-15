@@ -17,3 +17,6 @@ deno_core.workspace = true
 globwalk.workspace = true
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+jsonc-parser = "0.23.0"
+
+kurtex_core = {path = "../kurtex_core" }

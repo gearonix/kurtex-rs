@@ -4,14 +4,13 @@ use std::env;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
+use crate::ops::{BindingsResolver, OpsLoader};
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
 use deno_core::{v8, ModuleId};
 use serde::{Deserialize, Serialize};
-
-use crate::deno::module_loader::TsModuleLoader;
-use crate::runner::ops::{BindingsResolver, OpsLoader};
+use crate::module_loader::TsModuleLoader;
 
 pub struct EsmModuleResolver {
   pub runtime: deno_core::JsRuntime,

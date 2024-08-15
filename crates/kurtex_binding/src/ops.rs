@@ -1,9 +1,13 @@
 use std::borrow::Cow;
 
-use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8;
 use mut_rc::MutRc;
+
+use kurtex_core::collector::{
+  CollectorContext, CollectorIdentifier, CollectorMetadata, CollectorMode,
+  LifetimeHook, NodeCollectorManager,
+};
 
 pub struct BindingsResolver {
   pub bindings: Vec<deno_core::Extension>,

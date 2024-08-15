@@ -1,5 +1,5 @@
 [package]
-name = "kurtex_core"
+name = "kurtex_binding"
 version = "0.1.0"
 edition = "2021"
 
@@ -19,3 +19,5 @@ mut-rc.workspace = true
 hashbrown.workspace = true
 anyhow.workspace = true
 jsonc-parser.workspace = true
+
+kurtex_core = { path = "../kurtex_core" }

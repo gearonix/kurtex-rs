@@ -1089,6 +1089,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonc-parser"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7725c320caac8c21d8228c1d055af27a995d371f78cc763073d3e068323641b5"
+
+[[package]]
+name = "kurtex_binding"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "deno_ast",
+ "deno_core",
+ "globwalk",
+ "hashbrown",
+ "jsonc-parser",
+ "kurtex_core",
+ "mut-rc",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "kurtex_cli"
 version = "0.1.0"
 dependencies = [
@@ -1096,6 +1121,8 @@ dependencies = [
  "clap",
  "deno_core",
  "globwalk",
+ "jsonc-parser",
+ "kurtex_core",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1111,6 +1138,24 @@ dependencies = [
  "deno_core",
  "globwalk",
  "hashbrown",
+ "mut-rc",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "kurtex_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "deno_ast",
+ "deno_core",
+ "globwalk",
+ "hashbrown",
+ "jsonc-parser",
  "mut-rc",
  "reqwest",
  "serde",

@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 
+use crate::collector::NodeCollectorManager;
 use mut_rc::MutRc;
-
-use crate::runner::collector::NodeCollectorManager;
 
 pub struct CollectorContext {
   nodes: RefCell<Vec<MutRc<NodeCollectorManager>>>,

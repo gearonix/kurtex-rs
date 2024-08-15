@@ -1,14 +1,15 @@
-use crate::module_specifier::VALID_EXTENSIONS;
 use std::borrow::Cow;
 use std::env;
 use std::path::{Path, PathBuf};
+
+pub const DEFAULT_EXTENSIONS: [&'static str; 4] = ["ts", "js", "mjs", "cjs"];
 
 #[derive(Clone)]
 pub struct Extensions(pub Vec<&'static str>);
 
 impl Default for Extensions {
   fn default() -> Self {
-    Self(VALID_EXTENSIONS.to_vec())
+    Self(DEFAULT_EXTENSIONS.to_vec())
   }
 }
 
@@ -21,13 +22,13 @@ impl Into<Vec<&str>> for Extensions {
 pub struct Walk {
   extensions: Extensions,
   paths: Vec<&'static str>,
-  root_dir: PathBuf,
+  root_dir: &'static PathBuf,
 }
 
 impl Walk {
   pub const WALKER_MAX_DEPTH: i32 = 25;
 
-  pub fn new<S>(paths: &[S], root_dir: PathBuf) -> Self
+  pub fn new<S>(paths: &[S], root_dir: &PathBuf) -> Self
   where
     S: AsRef<str>,
   {
@@ -80,13 +81,10 @@ impl Walk {
   }
 }
 
-pub const fn kurtex_tmp_dir() -> PathBuf {
-  env::temp_dir().join("kurtex-tmp")
-}
-
 #[cfg(test)]
 mod test {
-  use crate::walk::{kurtex_tmp_dir, Extensions, Walk};
+  use crate::kurtex_tmp_dir;
+  use crate::walk::{Extensions, Walk};
   use std::path::PathBuf;
   use tokio::fs::File;
 
