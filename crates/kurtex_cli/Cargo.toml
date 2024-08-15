@@ -1,0 +1,19 @@
+[package]
+name = "kurtex_cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ktx"
+path = "src/main.rs"
+
+[dependencies]
+clap = "4.5.1"
+
+# TODO
+tokio.workspace = true
+anyhow.workspace = true
+deno_core.workspace = true
+globwalk.workspace = true
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
