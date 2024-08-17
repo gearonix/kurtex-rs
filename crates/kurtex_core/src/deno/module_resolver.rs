@@ -4,13 +4,15 @@ use std::env;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use crate::ops::{BindingsResolver, OpsLoader};
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
 use deno_core::{v8, ModuleId};
 use serde::{Deserialize, Serialize};
-use crate::module_loader::TsModuleLoader;
+
+use kurtex_binding::loader::TsModuleLoader;
+
+use crate::deno::ops::{BindingsResolver, OpsLoader};
 
 pub struct EsmModuleResolver {
   pub runtime: deno_core::JsRuntime,
@@ -29,7 +31,12 @@ impl EsmModuleResolver {
     let EsmResolverOptions { loaders: ops_loaders } = runtime_opts;
     let include_snapshot = !ops_loaders.is_empty();
 
-    let startup_snapshot = include_snapshot.then(|| binary_snapshot);
+    let startup_snapshot = include_snapshot.then(|| binary_snapshot).map(|v| {
+      // TODO: improve here
+      let slice: &'static [u8] = Box::leak(v.into_boxed_slice());
+      slice
+    });
+
     let extensions =
       ops_loaders.into_iter().map(|loader| loader.load()).collect();
 
@@ -52,7 +59,6 @@ impl EsmModuleResolver {
     S: AsRef<str>,
   {
     let file_path = file_path.as_ref();
-
     let module_id = self.resolve_module_id(file_path, is_main).await?;
 
     self.runtime.mod_evaluate(module_id).await?;

@@ -19,3 +19,6 @@ mut-rc.workspace = true
 hashbrown.workspace = true
 anyhow.workspace = true
 jsonc-parser.workspace = true
+
+
+kurtex_binding = { path = "../kurtex_binding" }

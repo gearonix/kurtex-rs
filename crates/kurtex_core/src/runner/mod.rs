@@ -1,21 +1,26 @@
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::AnyResult;
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::futures::StreamExt;
 use globwalk;
 use mut_rc::MutRc;
 
-use crate::collector::{CollectorFile, NodeCollectorManager};
+use crate::collector::{
+  CollectorContext, CollectorFile, CollectorMetadata, CollectorMode,
+  CollectorState, NodeCollectorManager,
+};
 use crate::config::loader::KurtexConfig;
-use crate::runner::ops::{CollectorRegistryOps, OpsLoader};
-
-mod ops;
+use crate::deno::module_resolver::{
+  extract_op_state, extract_op_state_mut, EsmModuleResolver, EsmResolverOptions,
+};
+use crate::deno::ops::{CollectorRegistryOps, OpsLoader};
+use crate::util::tokio::{create_pinned_future, run_concurrently};
+use crate::walk::Walk;
+use crate::AnyResult;
 
 #[derive(Default, Debug)]
 pub struct TestRunnerOptions {
@@ -48,7 +53,7 @@ impl TestRunner {
     TestRunner { options }
   }
 
-  pub async fn run() -> AnyResult {
+  pub async fn run(&self) -> AnyResult {
     // let cli_config = ContextProvider::get(&CLI_CONFIG).unwrap();
     // let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
     // let RuntimeConfig { options: runtime_opts, .. } = runtime_config;
@@ -61,10 +66,10 @@ impl TestRunner {
     });
     let esm_resolver = Rc::new(RefCell::new(esm_resolver));
 
-    if cli_config.watch {
-      // TODO
-      // options.runtime.enable_watch_mode();
-    }
+    // if cli_config.watch {
+    // TODO
+    // options.runtime.enable_watch_mode();
+    // }
 
     async fn process_test_file(
       esm_resolver: Rc<RefCell<EsmModuleResolver>>,
@@ -154,7 +159,7 @@ impl TestRunner {
       Ok(collector_file)
     }
 
-    let processed_tasks = Self::collect_test_files(&runtime_config)?
+    let processed_tasks = Self::collect_test_files(&self.options)?
       .map(|file_path: PathBuf| {
         let esm_resolver = Rc::clone(&esm_resolver);
 
@@ -162,7 +167,7 @@ impl TestRunner {
       })
       .collect();
 
-    if runtime_opts.parallel {
+    if self.options.parallel {
       let files = run_concurrently(processed_tasks).await;
       println!("files: {:#?}", files);
     } else {
@@ -191,22 +196,13 @@ impl TestRunner {
   }
 
   fn collect_test_files(
-    runtime_cfg: &RuntimeConfig,
-  ) -> Result<impl Iterator<Item = PathBuf> + '_, AnyError> {
-    let runtime_opts = &runtime_cfg.options;
-    let walk_glob = |patterns: &Vec<Cow<'static, str>>| {
-      globwalk::GlobWalkerBuilder::from_patterns(&runtime_cfg.root, patterns)
-        .max_depth(TEST_FILES_MAX_DEPTH as usize)
-        .build()
-        .unwrap()
-        .into_iter()
-        .filter_map(Result::ok)
-        .map(|entry| entry.into_path())
-    };
+    opts: &TestRunnerOptions,
+  ) -> Result<impl Iterator<Item = PathBuf>, AnyError> {
+    let TestRunnerOptions { root_dir, includes, excludes, .. } = opts;
 
-    #[allow(unused_mut)]
-    let mut included_cases = walk_glob(&runtime_opts.includes);
-    let mut excluded_cases = walk_glob(&runtime_opts.excludes);
+    // TODO
+    let mut included_cases = Walk::new(&includes, root_dir).build();
+    let mut excluded_cases = Walk::new(&excludes, root_dir).build();
 
     Ok(included_cases.filter(move |included_path| {
       !excluded_cases.any(|excluded_path| excluded_path.eq(included_path))

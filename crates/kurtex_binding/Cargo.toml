@@ -19,5 +19,3 @@ mut-rc.workspace = true
 hashbrown.workspace = true
 anyhow.workspace = true
 jsonc-parser.workspace = true
-
-kurtex_core = { path = "../kurtex_core" }

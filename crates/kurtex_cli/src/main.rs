@@ -1,18 +1,17 @@
+mod runner;
+
 use crate::runner::{CliRunner, Runner};
 use anyhow::{Context, Error};
 use clap::builder::Command;
-use clap::Arg;
+use clap::{Arg, ArgAction};
 use std::env;
 use std::path::PathBuf;
 use tracing_subscriber::filter::FilterExt;
 
-mod runner;
-mod walk;
-
 const CLI_SHORT_NAME: &str = "ktx";
 
 #[tokio::main(worker_threads = 2)]
-fn main() -> Result<(), Error> {
+async fn main() -> Result<(), Error> {
   init_tracing();
 
   let cli = build_cli();
@@ -63,18 +62,21 @@ fn build_cli() -> Command {
       Arg::new("watch")
         .long("watch")
         .short('w')
+        .action(ArgAction::SetFalse)
         .help("Enable watch mode")
         .value_parser(clap::value_parser!(bool)),
     )
     .arg(
       Arg::new("globals")
         .long("globals")
+        .action(ArgAction::SetFalse)
         .help("Inject apis globally")
         .value_parser(clap::value_parser!(bool)),
     )
     .arg(
       Arg::new("parallel")
         .long("parallel")
+        .action(ArgAction::SetFalse)
         .help("Run tasks in parallel")
         .value_parser(clap::value_parser!(bool)),
     )

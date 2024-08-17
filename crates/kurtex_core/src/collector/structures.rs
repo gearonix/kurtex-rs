@@ -183,12 +183,14 @@ impl FromStr for LifetimeHook {
   type Err = AnyError;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    match s.as_str() {
+    let lifetime_hook = match s {
       "beforeAll" => LifetimeHook::BeforeAll,
       "afterAll" => LifetimeHook::AfterAll,
       "beforeEach" => LifetimeHook::BeforeEach,
       "afterEach" => LifetimeHook::AfterEach,
       _ => unreachable!(),
-    }
+    };
+    
+    Ok(lifetime_hook)
   }
 }

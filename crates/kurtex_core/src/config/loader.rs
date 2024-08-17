@@ -5,15 +5,12 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Error as AnyError};
 use deno_core::{anyhow, v8};
-use jsonc_parser::parse_to_serde_value;
 use serde::{Deserialize, Serialize};
+use crate::AnyResult;
 
-use crate::context::ContextProvider;
 use crate::deno::module_resolver::{
   EsmModuleResolver, EsmResolverOptions, EsmSerdeResolver,
 };
-use crate::utils::fs::read_json_file;
-use crate::{AnyResult, CliConfig, CLI_CONFIG, TOKIO_RUNTIME};
 
 pub struct ConfigLoader {
   config_path: Cow<'static, str>,
@@ -44,9 +41,12 @@ pub struct KurtexConfig {
 
 impl Default for KurtexConfig {
   fn default() -> Self {
+    let to_vec =
+      |v: &'static [&'static str]| v.iter().map(|&s| s.to_owned()).collect();
+
     KurtexConfig {
-      includes: DEFAULT_INCLUDES.to_vec(),
-      excludes: DEFAULT_EXCLUDES.to_vec(),
+      includes: to_vec(DEFAULT_INCLUDES),
+      excludes: to_vec(DEFAULT_EXCLUDES),
       watch: false,
       parallel: false,
     }
@@ -68,7 +68,7 @@ impl ConfigLoader {
   }
 
   pub fn load(&self) -> AnyResult<KurtexConfig> {
-    assert!(self.config_path, "Config path not found.");
+    assert!(self.config_path.is_empty(), "Config path not found.");
 
     match self.resolve_config_extension()? {
       ConfigExtension::Json => self.parse_json_file(),
@@ -79,7 +79,9 @@ impl ConfigLoader {
   }
 
   fn resolve_config_extension(&self) -> AnyResult<ConfigExtension> {
-    let file_extension = PathBuf::from(&self.config_path)
+    let config_path = PathBuf::from(self.config_path.as_ref());
+
+    let file_extension = config_path
       .extension()
       .and_then(OsStr::to_str)
       .ok_or_else(|| anyhow!("Failed to resolve config: missing extension."))?;
@@ -93,15 +95,18 @@ impl ConfigLoader {
   }
 
   fn parse_json_file(&self) -> Result<KurtexConfig, AnyError> {
-    let cfg_contents = fs::read_to_string(&self.config_path).map_err(|e| {
-      format!(
+    let config_path = self.config_path.as_ref();
+
+    let cfg_contents = fs::read_to_string(config_path).map_err(|e| {
+      anyhow!(
         "Failed to read config file {}: {}",
         &self.config_path,
         e.to_string()
       )
-    });
+    })?;
 
-    serde_json::from_str(cfg_contents.leak())?
+    serde_json::from_str(cfg_contents.leak())
+      .map_err(|_| anyhow!("Failed to deserialize config file (json)"))
   }
 
   fn parse_esm_file(&self) -> Result<KurtexConfig, AnyError> {
@@ -115,12 +120,9 @@ impl ConfigLoader {
       let (exports, scope) = resolver
         .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
         .await?;
-      let kurtex_config =
-        EsmSerdeResolver::serialize::<KurtexConfig>(scope, exports)
-          .await
-          .map_err(|e| anyhow!("Failed to parse config: Invalid settings"));
-
-      Ok(kurtex_config)
+      EsmSerdeResolver::serialize::<KurtexConfig>(scope, exports)
+        .await
+        .map_err(|e| anyhow!("Failed to parse config: Invalid settings"))
     })
   }
 }

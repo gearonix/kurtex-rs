@@ -1,9 +1,15 @@
 use std::borrow::Cow;
+use std::fs;
+use std::path::Path;
 
-use deno_core::anyhow::Context;
+use crate::collector::{
+  CollectorContext, CollectorIdentifier, CollectorMetadata, CollectorMode,
+  LifetimeHook, NodeCollectorManager,
+};
 use deno_core::error::AnyError;
 use deno_core::v8;
 use mut_rc::MutRc;
+use std::str::FromStr;
 
 pub struct BindingsResolver {
   pub bindings: Vec<deno_core::Extension>,
@@ -12,10 +18,11 @@ pub struct BindingsResolver {
 impl BindingsResolver {
   #[inline]
   #[must_use]
-  pub const fn get_library_snapshot_path() -> &'static [u8] {
-    // TODO: move to global variable
-    // TODO: test factory
-    include_bytes!(concat!(env!("OUT_DIR"), "/KURTEX_SNAPSHOT.bin"))
+  pub fn get_library_snapshot_path() -> Vec<u8> {
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let snapshot_path = Path::new(&out_dir).join("/KURTEX_SNAPSHOT.bin");
+
+    fs::read(snapshot_path).expect("Failed to read runtime snapshot file.")
   }
 }
 
@@ -40,7 +47,7 @@ impl CollectorRegistryOps {
     #[global] callback: v8::Global<v8::Function>,
     #[string] mode: String,
   ) -> Result<(), AnyError> {
-    let run_mode = CollectorMode::from(mode);
+    let run_mode = CollectorMode::from_str(&mode)?;
 
     let current_node = collector_ctx.get_current_node();
     let current_node = current_node.borrow_mut();
@@ -62,7 +69,7 @@ impl CollectorRegistryOps {
     #[string] mode: String,
   ) -> Result<(), AnyError> {
     let identifier = CollectorIdentifier::Custom(identifier);
-    let run_mode = CollectorMode::from(mode);
+    let run_mode = CollectorMode::from_str(&mode)?;
 
     let node_collector = MutRc::new(NodeCollectorManager::new_with_factory(
       identifier, run_mode, factory,
@@ -81,7 +88,7 @@ impl CollectorRegistryOps {
     #[string] lifetime_hook: String,
     #[global] callback: v8::Global<v8::Function>,
   ) -> Result<(), AnyError> {
-    let lifetime_hook = LifetimeHook::from(lifetime_hook);
+    let lifetime_hook = LifetimeHook::from_str(&lifetime_hook)?;
 
     let current_node = collector_ctx.get_current_node();
     let current_node = current_node.borrow_mut();

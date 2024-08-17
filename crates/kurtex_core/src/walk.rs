@@ -19,16 +19,16 @@ impl Into<Vec<&str>> for Extensions {
   }
 }
 
-pub struct Walk {
+pub struct Walk<'a> {
   extensions: Extensions,
-  paths: Vec<&'static str>,
-  root_dir: &'static PathBuf,
+  paths: Vec<String>,
+  root_dir: &'a Path,
 }
 
-impl Walk {
+impl<'a> Walk<'a> {
   pub const WALKER_MAX_DEPTH: i32 = 25;
 
-  pub fn new<S>(paths: &[S], root_dir: &PathBuf) -> Self
+  pub fn new<S>(paths: &[S], root_dir: &'a Path) -> Self
   where
     S: AsRef<str>,
   {
@@ -37,7 +37,11 @@ impl Walk {
       "At least one path must be provided to Walk::new"
     );
 
-    Self { root_dir, extensions: Extensions::default(), paths: paths.to_vec() }
+    Self {
+      root_dir,
+      extensions: Extensions::default(),
+      paths: paths.iter().map(|p| p.as_ref().to_string()).collect(),
+    }
   }
 
   pub fn with_extensions(mut self, extensions: Extensions) -> Self {
@@ -57,7 +61,7 @@ impl Walk {
         updated_paths.extend(self.paths.iter().map(|path| {
           let updated_path = Path::new(path).with_extension(ext);
 
-          updated_path.to_str().unwrap()
+          updated_path.to_str().map(|s| s.to_owned()).unwrap()
         }));
       }
       assert!(!updated_paths.is_empty());
@@ -65,17 +69,15 @@ impl Walk {
       updated_paths
     };
 
-    let walker = globwalk::GlobWalkerBuilder::from_patterns(
-      self.root_dir,
-      paths.iter().map(|f| f.as_os_str()).collect(),
-    )
-    .max_depth(Self::WALKER_MAX_DEPTH as usize)
-    .follow_links(false)
-    .build()
-    .unwrap()
-    .into_iter()
-    .filter_map(Result::ok)
-    .map(|e| e.into_path());
+    let walker =
+      globwalk::GlobWalkerBuilder::from_patterns(self.root_dir, &paths)
+        .max_depth(Self::WALKER_MAX_DEPTH as usize)
+        .follow_links(false)
+        .build()
+        .unwrap()
+        .into_iter()
+        .filter_map(Result::ok)
+        .map(|e| e.into_path());
 
     walker
   }
