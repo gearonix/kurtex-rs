@@ -107,7 +107,6 @@ impl deno_core::ModuleLoader for TsModuleLoader {
       );
 
       let media_type = MediaType::from_path(&module_path);
-
       let code = std::fs::read_to_string(&module_path.as_path())?;
 
       let code = if should_transpile {

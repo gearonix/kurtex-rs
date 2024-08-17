@@ -49,7 +49,10 @@ impl Runner for CliRunner {
     root_dir.join(&config_path).clone_into(&mut config_path);
 
     let now = time::Instant::now();
-    let rt = tokio::runtime::Handle::current();
+    let rt = tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .unwrap();
 
     let config_path = if config_path.exists() {
       config_path
@@ -70,11 +73,16 @@ impl Runner for CliRunner {
       ..Default::default()
     };
 
-    let config_loader = ConfigLoader::new(config_path_.display().to_string());
-    runner_options.adjust_config_file(config_loader.load()?);
-    let test_runner = TestRunner::new(runner_options);
+    let config_loader =
+      ConfigLoader::new(config_path_.display().to_string());
 
-    let _ = rt.block_on(test_runner.run())?;
+    let _ = rt.block_on(async {
+      let config_file = config_loader.load().await.unwrap();
+      runner_options.adjust_config_file(config_file);
+      let test_runner = TestRunner::new(runner_options);
+
+      test_runner.run().await.unwrap();
+    });
 
     #[cfg(debug_assertions)]
     println!("Elapsed time: {:?} ms", now.elapsed().as_millis());

@@ -56,8 +56,9 @@ impl<'a> Walk<'a> {
       self.paths
     } else {
       let mut updated_paths = Vec::new();
+      let mut extensions_iter = extensions.iter();
 
-      while let Some(&ext) = extensions.iter().next() {
+      while let Some(&ext) = extensions_iter.next() {
         updated_paths.extend(self.paths.iter().map(|path| {
           let updated_path = Path::new(path).with_extension(ext);
 

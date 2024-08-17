@@ -186,7 +186,6 @@ impl TestRunner {
       let op_state = op_state.borrow();
 
       let collector_meta = extract_op_state::<CollectorMetadata>(&op_state)?;
-
       Self::normalize_mode_settings(&mut file_map, &collector_meta);
 
       println!("file_map: {:#?}", file_map);

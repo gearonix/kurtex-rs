@@ -1,22 +1,22 @@
-mod runner;
+use std::env;
+
+use anyhow::{Context, Error};
+use clap::{Arg, ArgAction};
+use clap::builder::Command;
+use tracing_subscriber::filter::FilterExt;
 
 use crate::runner::{CliRunner, Runner};
-use anyhow::{Context, Error};
-use clap::builder::Command;
-use clap::{Arg, ArgAction};
-use std::env;
-use std::path::PathBuf;
-use tracing_subscriber::filter::FilterExt;
+
+mod runner;
 
 const CLI_SHORT_NAME: &str = "ktx";
 
-#[tokio::main(worker_threads = 2)]
-async fn main() -> Result<(), Error> {
+fn main() -> Result<(), Error> {
   init_tracing();
-
+  
   let cli = build_cli();
-  let mut matches = cli.get_matches();
-
+  let matches = cli.get_matches();
+  
   CliRunner::new(matches).run()
 }
 

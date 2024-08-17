@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fs;
-use std::path::PathBuf;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
 
+use crate::AnyResult;
 use anyhow::{anyhow, Error as AnyError};
 use deno_core::{anyhow, v8};
 use serde::{Deserialize, Serialize};
-use crate::AnyResult;
 
 use crate::deno::module_resolver::{
   EsmModuleResolver, EsmResolverOptions, EsmSerdeResolver,
@@ -67,13 +68,15 @@ impl ConfigLoader {
     ConfigLoader { config_path: config_path.into() }
   }
 
-  pub fn load(&self) -> AnyResult<KurtexConfig> {
-    assert!(self.config_path.is_empty(), "Config path not found.");
+  pub async fn load(&self) -> AnyResult<KurtexConfig> {
+    let path_exists = Path::new(self.config_path.deref()).exists();
+
+    assert!(path_exists, "Config path not found.");
 
     match self.resolve_config_extension()? {
       ConfigExtension::Json => self.parse_json_file(),
       ConfigExtension::JavaScript | ConfigExtension::TypeScript => {
-        self.parse_esm_file()
+        self.parse_esm_file().await
       }
     }
   }
@@ -109,20 +112,15 @@ impl ConfigLoader {
       .map_err(|_| anyhow!("Failed to deserialize config file (json)"))
   }
 
-  fn parse_esm_file(&self) -> Result<KurtexConfig, AnyError> {
-    let rt = tokio::runtime::Handle::current();
+  async fn parse_esm_file(&self) -> Result<KurtexConfig, AnyError> {
+    let mut resolver = EsmModuleResolver::new(EsmResolverOptions::default());
+    let module_id = resolver.process_esm_file(&self.config_path, true).await?;
 
-    rt.block_on(async move {
-      let mut resolver = EsmModuleResolver::new(EsmResolverOptions::default());
-      let module_id =
-        resolver.process_esm_file(&self.config_path, true).await?;
-
-      let (exports, scope) = resolver
-        .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
-        .await?;
-      EsmSerdeResolver::serialize::<KurtexConfig>(scope, exports)
-        .await
-        .map_err(|e| anyhow!("Failed to parse config: Invalid settings"))
-    })
+    let (exports, scope) = resolver
+      .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
+      .await?;
+    EsmSerdeResolver::serialize::<KurtexConfig>(scope, exports)
+      .await
+      .map_err(|_| anyhow!("Failed to parse config: Invalid settings"))
   }
 }
