@@ -6,7 +6,6 @@ use std::rc::Rc;
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::futures::StreamExt;
-use globwalk;
 use mut_rc::MutRc;
 
 use crate::collector::{

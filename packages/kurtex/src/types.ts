@@ -36,18 +36,27 @@ export type LifetimeHookType =
   | 'beforeEach'
   | 'afterEach'
 
+type RegisterCollectorTask = (
+  identifier: string,
+  callback: TestCallback,
+  mode: CollectorRunMode
+) => void
+
+type RegisterCollectorNode = (
+  identifier: string,
+  factory: TestFactory,
+  runMode: CollectorRunMode
+) => void
+
+type RegisterLifetimeHook = (
+  hook: LifetimeHookType,
+  callback: TestCallback
+) => void
+
 export interface KurtexInternals {
-  registerCollectorTask: (
-    identifier: string,
-    callback: TestCallback,
-    mode: CollectorRunMode
-  ) => void
-  registerCollectorNode: (
-    identifier: string,
-    factory: TestFactory,
-    runMode: CollectorRunMode
-  ) => void
-  registerLifetimeHook: (hook: LifetimeHookType, callback: TestCallback) => void
+  registerCollectorTask: RegisterCollectorTask
+  registerCollectorNode: RegisterCollectorNode
+  registerLifetimeHook: RegisterLifetimeHook
 }
 
 export interface KurtexPublicApi {
@@ -71,28 +80,16 @@ declare global {
   namespace Deno {
     interface DenoCore {
       ops: {
-        op_register_collector_task: (
-          identifier: string,
-          callback: TestCallback,
-          mode: CollectorRunMode
-        ) => void
-        // TODO: return type + identical types
-        op_register_collector_node: (
-          identifier: string,
-          factory: TestFactory,
-          mode: CollectorRunMode
-        ) => unknown
-        op_register_lifetime_hook: (
-          hook: LifetimeHookType,
-          callback: TestCallback
-        ) => void
+        op_register_collector_task: RegisterCollectorTask
+        op_register_collector_node: RegisterCollectorNode
+        op_register_lifetime_hook: RegisterLifetimeHook
       } & Record<string, (...args: any[]) => unknown>
     }
 
     export const core: DenoCore
   }
 
-  const __kurtexInternals__: KurtexInternals
+  const __kurtexInternals: KurtexInternals
 
   const test: KurtexPublicApi['test']
   const it: KurtexPublicApi['it']

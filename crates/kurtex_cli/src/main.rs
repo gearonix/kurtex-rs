@@ -1,22 +1,20 @@
 use std::env;
 
 use anyhow::{Context, Error};
-use clap::{Arg, ArgAction};
 use clap::builder::Command;
+use clap::{Arg, ArgAction};
 use tracing_subscriber::filter::FilterExt;
 
 use crate::runner::{CliRunner, Runner};
 
 mod runner;
 
-const CLI_SHORT_NAME: &str = "ktx";
-
 fn main() -> Result<(), Error> {
   init_tracing();
-  
+
   let cli = build_cli();
   let matches = cli.get_matches();
-  
+
   CliRunner::new(matches).run()
 }
 
@@ -38,7 +36,7 @@ fn init_tracing() {
 }
 
 fn build_cli() -> Command {
-  Command::new(CLI_SHORT_NAME)
+  Command::new(env!("CARGO_BIN_NAME"))
     .arg(
       Arg::new("root")
         .long("root")
@@ -86,4 +84,9 @@ pub mod exits {
   #[allow(unused)]
   pub const SUCCESS: i32 = 0;
   pub const RUNTIME_ERROR: i32 = 1;
+}
+
+pub mod settings {
+  pub const RUNTIME_SNAPSHOT: &'static [u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/KURTEX_SNAPSHOT.bin"));
 }

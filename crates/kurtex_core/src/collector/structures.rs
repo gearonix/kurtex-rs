@@ -5,7 +5,9 @@ use std::rc::{Rc, Weak};
 use std::str::FromStr;
 
 use anyhow::anyhow;
+use deno_core::convert::Smi;
 use deno_core::v8;
+use deno_core::v8::{HandleScope, Local, Value};
 use hashbrown::HashMap;
 
 use crate::AnyError;
@@ -24,6 +26,20 @@ pub enum CollectorState {
   Custom(CollectorMode),
   Fail,
   Pass,
+}
+
+impl<'a> deno_core::FromV8<'a> for CollectorMode {
+  type Error = deno_core::error::StdAnyError;
+
+  fn from_v8(
+    scope: &mut HandleScope<'a>,
+    value: Local<'a, Value>,
+  ) -> Result<Self, Self::Error> {
+    let owned_string = deno_core::_ops::to_string(scope, &value);
+
+    CollectorMode::from_str(&owned_string)
+      .map_err(|e| deno_core::error::StdAnyError::from(e))
+  }
 }
 
 impl FromStr for CollectorMode {
@@ -45,6 +61,20 @@ pub enum CollectorIdentifier {
   #[default]
   File,
   Custom(String),
+}
+
+impl<'a> deno_core::FromV8<'a> for CollectorIdentifier {
+  type Error = deno_core::error::StdAnyError;
+
+  fn from_v8(
+    scope: &mut HandleScope<'a>,
+    value: Local<'a, Value>,
+  ) -> Result<Self, Self::Error> {
+    let identifier =
+      CollectorIdentifier::Custom(deno_core::_ops::to_string(scope, &value));
+
+    Ok(identifier)
+  }
 }
 
 impl std::fmt::Debug for CollectorIdentifier {
@@ -179,6 +209,20 @@ pub enum LifetimeHook {
   AfterEach,
 }
 
+impl<'a> deno_core::FromV8<'a> for LifetimeHook {
+  type Error = deno_core::error::StdAnyError;
+
+  fn from_v8(
+    scope: &mut HandleScope<'a>,
+    value: Local<'a, Value>,
+  ) -> Result<Self, Self::Error> {
+    let owned_string = deno_core::_ops::to_string(scope, &value);
+
+    LifetimeHook::from_str(&owned_string)
+      .map_err(|e| deno_core::error::StdAnyError::from(e))
+  }
+}
+
 impl FromStr for LifetimeHook {
   type Err = AnyError;
 
@@ -190,7 +234,7 @@ impl FromStr for LifetimeHook {
       "afterEach" => LifetimeHook::AfterEach,
       _ => unreachable!(),
     };
-    
+
     Ok(lifetime_hook)
   }
 }

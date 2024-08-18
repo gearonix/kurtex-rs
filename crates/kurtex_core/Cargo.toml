@@ -7,18 +7,17 @@ edition = "2021"
 bench = false
 
 [dependencies]
-clap.workspace = true
+globwalk = { version = "0.9.1" }
+
 deno_ast.workspace = true
 deno_core.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-globwalk.workspace = true
 mut-rc.workspace = true
 hashbrown.workspace = true
 anyhow.workspace = true
-jsonc-parser.workspace = true
 
-
+# Local dependencies
 kurtex_binding = { path = "../kurtex_binding" }

@@ -1,23 +1,20 @@
 use std::borrow::Cow;
-use std::fs;
-use std::path::Path;
+
+use deno_core::error::AnyError;
+use deno_core::v8;
+use mut_rc::MutRc;
 
 use crate::collector::{
   CollectorContext, CollectorIdentifier, CollectorMetadata, CollectorMode,
   LifetimeHook, NodeCollectorManager,
 };
-use deno_core::error::AnyError;
-use deno_core::v8;
-use mut_rc::MutRc;
-use std::str::FromStr;
-
-pub struct CollectorRegistryOps;
 
 pub trait OpsLoader {
   fn load(&self) -> deno_core::Extension;
 }
 
-// TODO: AsyncRefCell
+pub struct CollectorRegistryOps;
+
 impl CollectorRegistryOps {
   pub fn new() -> Self {
     CollectorRegistryOps
@@ -30,10 +27,8 @@ impl CollectorRegistryOps {
     #[state] collector_ctx: &CollectorContext,
     #[string] identifier: String,
     #[global] callback: v8::Global<v8::Function>,
-    #[string] mode: String,
+    #[from_v8] run_mode: CollectorMode,
   ) -> Result<(), AnyError> {
-    let run_mode = CollectorMode::from_str(&mode)?;
-
     let current_node = collector_ctx.get_current_node();
     let current_node = current_node.borrow_mut();
 
@@ -49,13 +44,10 @@ impl CollectorRegistryOps {
   #[meta(sanitizer_fix = "awaiting identifier and callback")]
   fn op_register_collector_node<'a>(
     #[state] collector_ctx: &CollectorContext,
-    #[string] identifier: String,
+    #[from_v8] identifier: CollectorIdentifier,
     #[global] factory: v8::Global<v8::Function>,
-    #[string] mode: String,
+    #[from_v8] run_mode: CollectorMode,
   ) -> Result<(), AnyError> {
-    let identifier = CollectorIdentifier::Custom(identifier);
-    let run_mode = CollectorMode::from_str(&mode)?;
-
     let node_collector = MutRc::new(NodeCollectorManager::new_with_factory(
       identifier, run_mode, factory,
     ));
@@ -70,11 +62,9 @@ impl CollectorRegistryOps {
   #[meta(sanitizer_fix = "awaiting lifetime hook type and callback")]
   fn op_register_lifetime_hook<'a>(
     #[state] collector_ctx: &CollectorContext,
-    #[string] lifetime_hook: String,
+    #[from_v8] lifetime_hook: LifetimeHook,
     #[global] callback: v8::Global<v8::Function>,
   ) -> Result<(), AnyError> {
-    let lifetime_hook = LifetimeHook::from_str(&lifetime_hook)?;
-
     let current_node = collector_ctx.get_current_node();
     let current_node = current_node.borrow_mut();
 

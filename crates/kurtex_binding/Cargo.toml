@@ -7,15 +7,12 @@ edition = "2021"
 bench = false
 
 [dependencies]
-clap.workspace = true
 deno_ast.workspace = true
 deno_core.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-globwalk.workspace = true
 mut-rc.workspace = true
 hashbrown.workspace = true
 anyhow.workspace = true
-jsonc-parser.workspace = true

@@ -24,7 +24,6 @@ pub struct EsmResolverOptions {
   pub snapshot: &'static [u8],
 }
 
-// TODO rewrite to better scoped lts
 impl EsmModuleResolver {
   pub fn new(options: EsmResolverOptions) -> EsmModuleResolver {
     let EsmResolverOptions { loaders: ops_loaders, snapshot } = options;
@@ -120,8 +119,9 @@ impl EsmModuleResolver {
   }
 }
 
-#[derive(Default)]
-pub struct EsmSerdeResolver;
+pub struct EsmSerdeResolver {
+  pub key_cache: deno_core::serde_v8::KeyCache,
+}
 
 impl EsmSerdeResolver {
   pub async fn serialize<R>(

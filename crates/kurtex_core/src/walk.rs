@@ -1,6 +1,5 @@
-use std::borrow::Cow;
-use std::env;
 use std::path::{Path, PathBuf};
+use globwalk;
 
 pub const DEFAULT_EXTENSIONS: [&'static str; 4] = ["ts", "js", "mjs", "cjs"];
 
@@ -69,6 +68,7 @@ impl<'a> Walk<'a> {
           updated_path.to_str().map(|s| s.to_owned()).unwrap()
         }));
       }
+
       assert!(!updated_paths.is_empty());
 
       updated_paths
@@ -90,30 +90,40 @@ impl<'a> Walk<'a> {
 
 #[cfg(test)]
 mod test {
-  use crate::kurtex_tmp_dir;
-  use crate::walk::{Extensions, Walk};
   use std::path::PathBuf;
+  use tokio::fs;
+
   use tokio::fs::File;
 
-  // TODO
-  #[test]
+  use crate::util::fs::kurtex_tmp_dir;
+  use crate::walk::{Extensions, Walk};
+
+  #[tokio::test]
   async fn test_walker_with_extensions() {
     let mut tmp_dir = kurtex_tmp_dir();
     tmp_dir.join("tests/walker").clone_into(&mut tmp_dir);
+
+    fs::create_dir_all(tmp_dir.clone()).await.unwrap();
+    assert!(tmp_dir.exists(), "tmp_dir was not created.");
+
     let test_files = ["bar", "foo"];
 
     for file in test_files {
       let file = PathBuf::from(file).with_extension("ts");
-      File::create(file).await?;
+      File::create(tmp_dir.join(file)).await.unwrap();
     }
 
-    let mut paths = Walk::new(&test_files, tmp_dir)
-      .with_extensions(Extensions(["rs, ts"].to_vec()))
+    println!(": {:?}", ["rs, ts"].to_vec());
+    let mut paths = Walk::new(&test_files, &tmp_dir)
+      .with_extensions(Extensions(["rs", "ts"].to_vec()))
       .build()
-      .collect();
+      .collect::<Vec<PathBuf>>();
 
     paths.sort();
 
-    assert_eq!(paths, vec!["bar.ts", "foo.ts"])
+    let expected = ["bar.ts", "foo.ts"];
+    assert_eq!(paths, expected.map(|f| tmp_dir.join(f)));
+
+    fs::remove_dir_all(kurtex_tmp_dir()).await.unwrap();
   }
 }

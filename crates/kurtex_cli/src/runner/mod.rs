@@ -5,8 +5,10 @@ use clap::ArgMatches;
 use kurtex_core::AnyResult;
 use tokio::time;
 
+use crate::settings;
 use kurtex_core::config::loader::ConfigLoader;
 use kurtex_core::runner::{RuntimeOptions, TestRunner, TestRunnerOptions};
+use kurtex_core::util::tokio::run_async;
 use kurtex_core::walk::{Extensions, Walk};
 
 /// A trait for exposing functionality to the CLI.
@@ -17,19 +19,15 @@ pub trait Runner {
   fn run(self) -> AnyResult;
 }
 
-// TODO
-pub const RUNTIME_SNAPSHOT: &'static [u8] =
-  include_bytes!(concat!(env!("OUT_DIR"), "/KURTEX_SNAPSHOT.bin"));
+#[derive(Clone)]
+pub struct CliRunner {
+  options: ArgMatches,
+}
 
 pub const VALID_CONFIG_FILES: [&str; 2] = ["kurtex.config", "ktx.config"];
 
 pub const VALID_EXTENSIONS: [&str; 8] =
   ["js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx"];
-
-#[derive(Clone)]
-pub struct CliRunner {
-  options: ArgMatches,
-}
 
 impl Runner for CliRunner {
   type Options = ArgMatches;
@@ -79,16 +77,22 @@ impl Runner for CliRunner {
 
     let config_loader = ConfigLoader::new(config_path_.display().to_string());
 
-    let _ = rt.block_on(async {
-      let config_file = config_loader.load().await.unwrap();
-      runner_options.adjust_config_file(config_file);
-      let test_runner = TestRunner::new(
-        runner_options,
-        RuntimeOptions::new_from_snapshot(RUNTIME_SNAPSHOT),
-      );
+    run_async(
+      async {
+        let config_file = config_loader.load().await.unwrap();
+        runner_options.adjust_config_file(config_file);
+        let test_runner = TestRunner::new(
+          runner_options,
+          RuntimeOptions::new_from_snapshot(settings::RUNTIME_SNAPSHOT),
+        );
 
-      test_runner.run().await.unwrap();
-    });
+        test_runner.run().await.unwrap();
+
+        // TODO: remove
+        Ok(())
+      },
+      Some(rt),
+    );
 
     #[cfg(debug_assertions)]
     println!("Elapsed time: {:?} ms", now.elapsed().as_millis());

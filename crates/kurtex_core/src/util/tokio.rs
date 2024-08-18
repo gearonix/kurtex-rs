@@ -1,6 +1,11 @@
 use std::future::Future;
 use std::pin::Pin;
-use crate::AnyError;
+use std::sync::mpsc::{channel, RecvTimeoutError};
+use std::time::Duration;
+
+use tokio::runtime::Runtime;
+
+use crate::{AnyError, AnyResult};
 
 pub async fn run_concurrently<T, O>(handles: Vec<T>) -> Vec<O>
 where
@@ -35,4 +40,33 @@ where
   F: 'static + Future<Output = O>,
 {
   move || Box::pin(fut)
+}
+
+pub fn run_async<R>(f: impl Future<Output = AnyResult<R>>, runtime: Option<Runtime>) {
+  let runtime = runtime.unwrap_or_else(|| {
+    tokio::runtime::Builder::new_current_thread()
+      .enable_all()
+      .build()
+      .expect("Failed to build a runtime")
+  });
+
+  runtime.block_on(f).expect("Failed to run the given task");
+
+  let handle = runtime.spawn(async {
+    tokio::task::yield_now().await;
+  });
+  _ = runtime.block_on(handle);
+
+  let (tx, rx) = channel::<()>();
+  let timeout = std::thread::spawn(move || {
+    if rx.recv_timeout(Duration::from_secs(10))
+      == Err(RecvTimeoutError::Timeout)
+    {
+      panic!("Failed to shut down the runtime in time");
+    }
+  });
+
+  drop(runtime);
+  drop(tx);
+  _ = timeout.join();
 }
