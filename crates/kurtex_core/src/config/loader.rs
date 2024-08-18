@@ -34,10 +34,10 @@ pub struct KurtexConfig {
   pub excludes: Vec<String>,
 
   #[serde(default)]
-  pub watch: bool,
+  pub watch: Option<bool>,
 
   #[serde(default)]
-  pub parallel: bool,
+  pub parallel: Option<bool>,
 }
 
 impl Default for KurtexConfig {
@@ -48,8 +48,8 @@ impl Default for KurtexConfig {
     KurtexConfig {
       includes: to_vec(DEFAULT_INCLUDES),
       excludes: to_vec(DEFAULT_EXCLUDES),
-      watch: false,
-      parallel: false,
+      watch: None,
+      parallel: None,
     }
   }
 }

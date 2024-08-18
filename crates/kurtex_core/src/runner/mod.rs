@@ -35,10 +35,22 @@ pub struct TestRunnerOptions {
 
 impl TestRunnerOptions {
   pub fn adjust_config_file(&mut self, config: KurtexConfig) {
-    self.parallel |= config.parallel;
-    self.watch |= config.watch;
+    config.parallel.map(|par| self.parallel = par);
+    config.watch.map(|watch| self.watch = watch);
+
     self.includes = config.includes;
     self.excludes = config.excludes;
+  }
+}
+
+#[derive(Default, Debug)]
+pub struct RuntimeOptions {
+  runtime_snapshot: &'static [u8],
+}
+
+impl RuntimeOptions {
+  pub fn new_from_snapshot(runtime_snapshot: &'static [u8]) -> Self {
+    RuntimeOptions { runtime_snapshot }
   }
 }
 
@@ -46,30 +58,23 @@ type CollectorFileMap = HashMap<PathBuf, Rc<CollectorFile>>;
 
 pub struct TestRunner {
   options: TestRunnerOptions,
+  runtime: RuntimeOptions,
 }
 
 impl TestRunner {
-  pub fn new(options: TestRunnerOptions) -> Self {
-    TestRunner { options }
+  pub fn new(options: TestRunnerOptions, runtime: RuntimeOptions) -> Self {
+    TestRunner { options, runtime }
   }
 
   pub async fn run(&self) -> AnyResult {
-    // let cli_config = ContextProvider::get(&CLI_CONFIG).unwrap();
-    // let runtime_config = ContextProvider::get(&RUNTIME_CONFIG).unwrap();
-    // let RuntimeConfig { options: runtime_opts, .. } = runtime_config;
-
     let collector_ops_loader: Box<dyn OpsLoader> =
       Box::new(CollectorRegistryOps::new());
 
     let esm_resolver = EsmModuleResolver::new(EsmResolverOptions {
-      loaders: Vec::from([collector_ops_loader]),
+      loaders: vec![collector_ops_loader],
+      snapshot: self.runtime.runtime_snapshot,
     });
     let esm_resolver = Rc::new(RefCell::new(esm_resolver));
-
-    // if cli_config.watch {
-    // TODO
-    // options.runtime.enable_watch_mode();
-    // }
 
     async fn process_test_file(
       esm_resolver: Rc<RefCell<EsmModuleResolver>>,
@@ -175,7 +180,6 @@ impl TestRunner {
 
       for task in processed_tasks {
         let file = task().await?;
-
         let file_path = file.file_path.clone();
 
         file_map.insert(file_path, file);
@@ -199,10 +203,10 @@ impl TestRunner {
   ) -> Result<impl Iterator<Item = PathBuf>, AnyError> {
     let TestRunnerOptions { root_dir, includes, excludes, .. } = opts;
 
-    // TODO
-    let mut included_cases = Walk::new(&includes, root_dir).build();
+    let included_cases = Walk::new(&includes, root_dir).build();
     let mut excluded_cases = Walk::new(&excludes, root_dir).build();
 
+    // TODO rewrite: **/node_modules/**
     Ok(included_cases.filter(move |included_path| {
       !excluded_cases.any(|excluded_path| excluded_path.eq(included_path))
     }))

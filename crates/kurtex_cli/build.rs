@@ -5,10 +5,11 @@ use std::path::PathBuf;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
   let target_snapshot_path =
     PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("KURTEX_SNAPSHOT.bin");
-
+  
+  // TODO: rewrite
   extension!(
     KurtexInternals,
-    js = ["packages/kurtex/dist/deno-bindings.mjs"],
+    js = ["../../packages/kurtex/dist/deno-bindings.mjs"],
     docs = "Kurtex internal bindings"
   );
 

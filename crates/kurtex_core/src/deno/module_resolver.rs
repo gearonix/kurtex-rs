@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use kurtex_binding::loader::TsModuleLoader;
 
-use crate::deno::ops::{BindingsResolver, OpsLoader};
+use crate::deno::ops::OpsLoader;
 
 pub struct EsmModuleResolver {
   pub runtime: deno_core::JsRuntime,
@@ -21,22 +21,16 @@ pub struct EsmModuleResolver {
 #[derive(Default)]
 pub struct EsmResolverOptions {
   pub loaders: Vec<Box<dyn OpsLoader>>,
+  pub snapshot: &'static [u8],
 }
 
 // TODO rewrite to better scoped lts
-
 impl EsmModuleResolver {
-  pub fn new(runtime_opts: EsmResolverOptions) -> EsmModuleResolver {
-    let binary_snapshot = BindingsResolver::get_library_snapshot_path();
-    let EsmResolverOptions { loaders: ops_loaders } = runtime_opts;
+  pub fn new(options: EsmResolverOptions) -> EsmModuleResolver {
+    let EsmResolverOptions { loaders: ops_loaders, snapshot } = options;
     let include_snapshot = !ops_loaders.is_empty();
 
-    let startup_snapshot = include_snapshot.then(|| binary_snapshot).map(|v| {
-      // TODO: improve here
-      let slice: &'static [u8] = Box::leak(v.into_boxed_slice());
-      slice
-    });
-
+    let startup_snapshot = include_snapshot.then(|| snapshot);
     let extensions =
       ops_loaders.into_iter().map(|loader| loader.load()).collect();
 

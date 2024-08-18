@@ -5,5 +5,3 @@ dist
 
 # TEMPORARY
 dev
-kurtex.config.*
-crates/kurtex_core_old

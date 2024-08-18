@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use deno_ast::{
-  EmitOptions, MediaType, ParseParams, SourceMapOption, SourceTextInfo,
+  EmitOptions, MediaType, ParseParams, SourceMapOption,
 };
 use deno_core::{ModuleLoadResponse, ModuleSourceCode, ModuleType};
 

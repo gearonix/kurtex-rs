@@ -6,7 +6,7 @@ use kurtex_core::AnyResult;
 use tokio::time;
 
 use kurtex_core::config::loader::ConfigLoader;
-use kurtex_core::runner::{TestRunner, TestRunnerOptions};
+use kurtex_core::runner::{RuntimeOptions, TestRunner, TestRunnerOptions};
 use kurtex_core::walk::{Extensions, Walk};
 
 /// A trait for exposing functionality to the CLI.
@@ -16,6 +16,10 @@ pub trait Runner {
   fn new(matches: Self::Options) -> Self;
   fn run(self) -> AnyResult;
 }
+
+// TODO
+pub const RUNTIME_SNAPSHOT: &'static [u8] =
+  include_bytes!(concat!(env!("OUT_DIR"), "/KURTEX_SNAPSHOT.bin"));
 
 pub const VALID_CONFIG_FILES: [&str; 2] = ["kurtex.config", "ktx.config"];
 
@@ -73,13 +77,15 @@ impl Runner for CliRunner {
       ..Default::default()
     };
 
-    let config_loader =
-      ConfigLoader::new(config_path_.display().to_string());
+    let config_loader = ConfigLoader::new(config_path_.display().to_string());
 
     let _ = rt.block_on(async {
       let config_file = config_loader.load().await.unwrap();
       runner_options.adjust_config_file(config_file);
-      let test_runner = TestRunner::new(runner_options);
+      let test_runner = TestRunner::new(
+        runner_options,
+        RuntimeOptions::new_from_snapshot(RUNTIME_SNAPSHOT),
+      );
 
       test_runner.run().await.unwrap();
     });

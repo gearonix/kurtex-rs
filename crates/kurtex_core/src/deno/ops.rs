@@ -11,21 +11,6 @@ use deno_core::v8;
 use mut_rc::MutRc;
 use std::str::FromStr;
 
-pub struct BindingsResolver {
-  pub bindings: Vec<deno_core::Extension>,
-}
-
-impl BindingsResolver {
-  #[inline]
-  #[must_use]
-  pub fn get_library_snapshot_path() -> Vec<u8> {
-    let out_dir = std::env::var("OUT_DIR").unwrap();
-    let snapshot_path = Path::new(&out_dir).join("/KURTEX_SNAPSHOT.bin");
-
-    fs::read(snapshot_path).expect("Failed to read runtime snapshot file.")
-  }
-}
-
 pub struct CollectorRegistryOps;
 
 pub trait OpsLoader {

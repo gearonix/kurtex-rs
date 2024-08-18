@@ -13,6 +13,12 @@ impl Default for Extensions {
   }
 }
 
+impl Extensions {
+  fn empty() -> Self {
+    Self(vec![])
+  }
+}
+
 impl Into<Vec<&str>> for Extensions {
   fn into(self) -> Vec<&'static str> {
     self.0
@@ -32,14 +38,9 @@ impl<'a> Walk<'a> {
   where
     S: AsRef<str>,
   {
-    assert!(
-      !paths.is_empty(),
-      "At least one path must be provided to Walk::new"
-    );
-
     Self {
       root_dir,
-      extensions: Extensions::default(),
+      extensions: Extensions::empty(),
       paths: paths.iter().map(|p| p.as_ref().to_string()).collect(),
     }
   }
@@ -49,9 +50,12 @@ impl<'a> Walk<'a> {
     self
   }
 
-  pub fn build(self) -> impl Iterator<Item = PathBuf> + Send {
-    let extensions: Vec<&str> = self.extensions.into();
+  pub fn build(self) -> Box<dyn Iterator<Item = PathBuf> + Send> {
+    if self.paths.is_empty() {
+      return Box::new(std::iter::empty());
+    }
 
+    let extensions: Vec<&str> = self.extensions.into();
     let paths = if extensions.is_empty() {
       self.paths
     } else {
@@ -80,7 +84,7 @@ impl<'a> Walk<'a> {
         .filter_map(Result::ok)
         .map(|e| e.into_path());
 
-    walker
+    Box::new(walker)
   }
 }
 
@@ -91,6 +95,7 @@ mod test {
   use std::path::PathBuf;
   use tokio::fs::File;
 
+  // TODO
   #[test]
   async fn test_walker_with_extensions() {
     let mut tmp_dir = kurtex_tmp_dir();
