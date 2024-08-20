@@ -1,13 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
-
-pub mod structures;
 pub mod context;
+pub mod structures;
 
-pub use structures::*;
 pub use context::*;
+pub use structures::*;
 
 #[derive(Clone)]
 pub struct NodeCollectorManager {

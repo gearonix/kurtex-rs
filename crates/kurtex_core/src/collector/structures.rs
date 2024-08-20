@@ -10,7 +10,7 @@ use deno_core::v8;
 use deno_core::v8::{HandleScope, Local, Value};
 use hashbrown::HashMap;
 
-use crate::AnyError;
+use crate::error::AnyError;
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub enum CollectorMode {
@@ -168,7 +168,7 @@ impl CollectorTask {
 }
 
 pub struct LifetimeHookManager {
-  hooks: HashMap<LifetimeHook, Vec<TestCallback>>,
+  data: HashMap<LifetimeHook, Vec<TestCallback>>,
 }
 
 impl LifetimeHookManager {
@@ -180,12 +180,12 @@ impl LifetimeHookManager {
     hooks.insert(LifetimeHook::BeforeEach, Vec::new());
     hooks.insert(LifetimeHook::AfterEach, Vec::new());
 
-    LifetimeHookManager { hooks }
+    LifetimeHookManager { data: hooks }
   }
 
   pub fn add_hook(&mut self, hook_key: LifetimeHook, callback: TestCallback) {
     self
-      .hooks
+      .data
       .get_mut(&hook_key)
       .and_then(|partition| {
         partition.push(callback);

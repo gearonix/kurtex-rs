@@ -1,0 +1,48 @@
+name: Check
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/check.yml"
+      - "**/*.rs"
+      - "**/Cargo.toml"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/check.yml"
+      - "**/*.rs"
+      - "**/Cargo.toml"
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Act dependencies
+        if: ${{ env.ACT }}
+        run: |
+          apt-get update && apt-get install sudo -y
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install curl build-essential -y
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        
+      - uses: extractions/setup-just@v2
+        env:
+          just-version: '1.4.0'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Cargo check
+        run: just check 

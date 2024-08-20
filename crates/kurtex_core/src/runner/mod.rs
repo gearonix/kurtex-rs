@@ -13,13 +13,13 @@ use crate::collector::{
   CollectorState, NodeCollectorManager,
 };
 use crate::config::loader::KurtexConfig;
-use crate::deno::module_resolver::{
-  extract_op_state, extract_op_state_mut, EsmModuleResolver, EsmResolverOptions,
-};
 use crate::deno::ops::{CollectorRegistryOps, OpsLoader};
+use crate::deno::runtime::{
+  extract_op_state, extract_op_state_mut, KurtexRuntime, KurtexRuntimeOptions,
+};
+use crate::error::AnyResult;
 use crate::util::tokio::{create_pinned_future, run_concurrently};
 use crate::walk::Walk;
-use crate::AnyResult;
 
 #[derive(Default, Debug)]
 pub struct TestRunnerOptions {
@@ -69,14 +69,14 @@ impl TestRunner {
     let collector_ops_loader: Box<dyn OpsLoader> =
       Box::new(CollectorRegistryOps::new());
 
-    let esm_resolver = EsmModuleResolver::new(EsmResolverOptions {
+    let esm_resolver = KurtexRuntime::new(KurtexRuntimeOptions {
       loaders: vec![collector_ops_loader],
       snapshot: self.runtime.runtime_snapshot,
     });
     let esm_resolver = Rc::new(RefCell::new(esm_resolver));
 
     async fn process_test_file(
-      esm_resolver: Rc<RefCell<EsmModuleResolver>>,
+      esm_resolver: Rc<RefCell<KurtexRuntime>>,
       file_path: PathBuf,
     ) -> Result<Rc<CollectorFile>, AnyError> {
       let collector_file = CollectorFile {
@@ -88,7 +88,7 @@ impl TestRunner {
       let mut resolver = esm_resolver.borrow_mut();
 
       fn clear_collector_context(
-        resolver: &mut EsmModuleResolver,
+        resolver: &mut KurtexRuntime,
       ) -> Result<(), AnyError> {
         let op_state = resolver.get_op_state()?;
         let mut op_state = op_state.borrow_mut();
@@ -103,7 +103,7 @@ impl TestRunner {
 
       async fn run_factory(
         clr: MutRc<NodeCollectorManager>,
-        resolver: &mut EsmModuleResolver,
+        resolver: &mut KurtexRuntime,
       ) {
         let clr = clr.get_clone().unwrap();
         let node_factory = clr.get_node_factory();

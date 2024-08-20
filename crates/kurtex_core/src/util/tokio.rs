@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use tokio::runtime::Runtime;
 
-use crate::{AnyError, AnyResult};
+use crate::error::{AnyError, AnyResult};
 
 pub async fn run_concurrently<T, O>(handles: Vec<T>) -> Vec<O>
 where
@@ -42,7 +42,10 @@ where
   move || Box::pin(fut)
 }
 
-pub fn run_async<R>(f: impl Future<Output = AnyResult<R>>, runtime: Option<Runtime>) {
+pub fn run_async<R>(
+  f: impl Future<Output = AnyResult<R>>,
+  runtime: Option<Runtime>,
+) {
   let runtime = runtime.unwrap_or_else(|| {
     tokio::runtime::Builder::new_current_thread()
       .enable_all()

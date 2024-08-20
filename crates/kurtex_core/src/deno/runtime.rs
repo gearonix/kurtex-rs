@@ -7,36 +7,39 @@ use std::rc::Rc;
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
-use deno_core::{v8, ModuleId};
+use deno_core::{v8, CrossIsolateStore, ModuleId, PollEventLoopOptions};
 use serde::{Deserialize, Serialize};
 
+use crate::AnyResult;
 use kurtex_binding::loader::TsModuleLoader;
 
 use crate::deno::ops::OpsLoader;
 
-pub struct EsmModuleResolver {
+pub struct KurtexRuntime {
   pub runtime: deno_core::JsRuntime,
 }
 
 #[derive(Default)]
-pub struct EsmResolverOptions {
+pub struct KurtexRuntimeOptions {
   pub loaders: Vec<Box<dyn OpsLoader>>,
   pub snapshot: &'static [u8],
 }
 
-impl EsmModuleResolver {
-  pub fn new(options: EsmResolverOptions) -> EsmModuleResolver {
-    let EsmResolverOptions { loaders: ops_loaders, snapshot } = options;
-    let include_snapshot = !ops_loaders.is_empty();
+impl KurtexRuntime {
+  pub fn new(options: KurtexRuntimeOptions) -> KurtexRuntime {
+    let KurtexRuntimeOptions { loaders, snapshot } = options;
+    let include_snapshot = !loaders.is_empty();
 
     let startup_snapshot = include_snapshot.then(|| snapshot);
-    let extensions =
-      ops_loaders.into_iter().map(|loader| loader.load()).collect();
+    let extensions = loaders.into_iter().map(|loader| loader.load()).collect();
+    let module_loader = Rc::new(TsModuleLoader::default());
 
     let deno_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-      module_loader: Some(Rc::new(TsModuleLoader)),
       startup_snapshot,
+      module_loader: Some(module_loader),
       extensions,
+      extension_transpiler: None,
+      shared_array_buffer_store: Some(CrossIsolateStore::default()),
       ..Default::default()
     });
 
@@ -114,8 +117,12 @@ impl EsmModuleResolver {
   pub async fn call_v8_function<'a>(
     &mut self,
     callback: &'a v8::Global<v8::Function>,
-  ) -> Result<v8::Global<v8::Value>, AnyError> {
-    self.runtime.call_with_args(callback, &[]).await
+  ) -> AnyResult<v8::Global<v8::Value>> {
+    let call = self.runtime.call_with_args(callback, &[]);
+    self
+      .runtime
+      .with_event_loop_promise(call, PollEventLoopOptions::default())
+      .await
   }
 }
 

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Error};
 use clap::ArgMatches;
-use kurtex_core::AnyResult;
+use kurtex_core::error::AnyResult;
 use tokio::time;
 
 use crate::settings;
@@ -86,10 +86,7 @@ impl Runner for CliRunner {
           RuntimeOptions::new_from_snapshot(settings::RUNTIME_SNAPSHOT),
         );
 
-        test_runner.run().await.unwrap();
-
-        // TODO: remove
-        Ok(())
+        test_runner.run().await
       },
       Some(rt),
     );

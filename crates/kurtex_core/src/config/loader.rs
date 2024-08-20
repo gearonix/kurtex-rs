@@ -4,13 +4,13 @@ use std::fs;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
-use crate::AnyResult;
+use crate::error::AnyResult;
 use anyhow::{anyhow, Error as AnyError};
 use deno_core::{anyhow, v8};
 use serde::{Deserialize, Serialize};
 
-use crate::deno::module_resolver::{
-  EsmModuleResolver, EsmResolverOptions, EsmSerdeResolver,
+use crate::deno::runtime::{
+  EsmSerdeResolver, KurtexRuntime, KurtexRuntimeOptions,
 };
 
 pub struct ConfigLoader {
@@ -113,7 +113,7 @@ impl ConfigLoader {
   }
 
   async fn parse_esm_file(&self) -> Result<KurtexConfig, AnyError> {
-    let mut resolver = EsmModuleResolver::new(EsmResolverOptions::default());
+    let mut resolver = KurtexRuntime::new(KurtexRuntimeOptions::default());
     let module_id = resolver.process_esm_file(&self.config_path, true).await?;
 
     let (exports, scope) = resolver

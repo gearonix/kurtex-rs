@@ -2,9 +2,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use deno_ast::{
-  EmitOptions, MediaType, ParseParams, SourceMapOption,
-};
+use deno_ast::{EmitOptions, MediaType, ParseParams, SourceMapOption};
 use deno_core::{ModuleLoadResponse, ModuleSourceCode, ModuleType};
 
 pub(crate) fn get_module_type_from_path<P>(
@@ -46,6 +44,7 @@ where
   }
 }
 
+#[derive(Default)]
 pub struct TsModuleLoader;
 
 impl deno_core::ModuleLoader for TsModuleLoader {

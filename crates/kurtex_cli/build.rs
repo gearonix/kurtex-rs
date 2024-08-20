@@ -5,7 +5,7 @@ use std::sync::Once;
 use std::{env, fs};
 
 use deno_core::v8::OneByteConst;
-use deno_core::{anyhow, FastStaticString};
+use deno_core::{anyhow, FastStaticString, RuntimeOptions};
 use swc_common::{
   self, comments::SingleThreadedComments, errors::Handler, sync::Lrc,
   FilePathMapping, Globals, Mark, SourceMap, GLOBALS,
@@ -55,23 +55,16 @@ fn main() -> Result<(), anyhow::Error> {
     ..deno_core::Extension::default()
   };
 
-  let snapshot = deno_core::snapshot::create_snapshot(
-    deno_core::snapshot::CreateSnapshotOptions {
-      cargo_manifest_dir: env!("CARGO_MANIFEST_DIR"),
-      startup_snapshot: None,
-      skip_op_registration: false,
-      extensions: vec![runtime_extension],
-      with_runtime_cb: None,
-      extension_transpiler: None,
-    },
-    None,
-  )
-  .unwrap();
+  let js_runtime = deno_core::JsRuntimeForSnapshot::new(RuntimeOptions {
+    extensions: vec![runtime_extension],
+    ..RuntimeOptions::default()
+  });
+  let snapshot_output = js_runtime.snapshot();
 
   fs::remove_dir_all(kurtex_tmp_dir())
     .expect("Failed to remove kurtex-tmp directory.");
 
-  Ok(std::fs::write(target_snapshot_path, snapshot.output)?)
+  Ok(fs::write(target_snapshot_path, snapshot_output)?)
 }
 
 pub fn get_out_dir() -> PathBuf {
@@ -178,4 +171,3 @@ fn create_entrypoint_onebyte_const(
 
   unsafe { ONE_BYTE_CONST.as_ref().unwrap() }
 }
-

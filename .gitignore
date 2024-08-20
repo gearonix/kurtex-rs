@@ -2,6 +2,4 @@
 .idea
 node_modules
 dist
-
-# TEMPORARY
 dev

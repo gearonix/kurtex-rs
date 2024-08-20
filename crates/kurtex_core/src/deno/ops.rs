@@ -78,6 +78,8 @@ impl CollectorRegistryOps {
 
 impl OpsLoader for CollectorRegistryOps {
   fn load(&self) -> deno_core::Extension {
+    const EXTENSION_IDENTIFIER: &'static str = "KurtexInternals";
+
     let provide_state = Box::new(move |op_state: &mut deno_core::OpState| {
       let collector_ctx = CollectorContext::new();
       let collector_meta = CollectorMetadata::default();
@@ -96,7 +98,7 @@ impl OpsLoader for CollectorRegistryOps {
     .collect();
 
     deno_core::Extension {
-      name: "KurtexInternals",
+      name: EXTENSION_IDENTIFIER,
       ops: Cow::Owned(collector_registry_ops),
       op_state_fn: Some(provide_state),
       ..deno_core::Extension::default()

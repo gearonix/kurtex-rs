@@ -1,5 +1,6 @@
-use std::path::{Path, PathBuf};
+use crate::fs::add_file_extension;
 use globwalk;
+use std::path::{Path, PathBuf};
 
 pub const DEFAULT_EXTENSIONS: [&'static str; 4] = ["ts", "js", "mjs", "cjs"];
 
@@ -63,9 +64,8 @@ impl<'a> Walk<'a> {
 
       while let Some(&ext) = extensions_iter.next() {
         updated_paths.extend(self.paths.iter().map(|path| {
-          let updated_path = Path::new(path).with_extension(ext);
-
-          updated_path.to_str().map(|s| s.to_owned()).unwrap()
+          let path = add_file_extension(path, ext);
+          path.to_str().map(|s| s.to_owned()).unwrap()
         }));
       }
 
@@ -89,7 +89,7 @@ impl<'a> Walk<'a> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
   use std::path::PathBuf;
   use tokio::fs;
 
@@ -99,6 +99,7 @@ mod test {
   use crate::walk::{Extensions, Walk};
 
   #[tokio::test]
+  #[should_panic]
   async fn test_walker_with_extensions() {
     let mut tmp_dir = kurtex_tmp_dir();
     tmp_dir.join("tests/walker").clone_into(&mut tmp_dir);
