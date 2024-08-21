@@ -2,12 +2,13 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::time::Duration;
+use tokio_stream::{self as stream, StreamExt};
 
 use tokio::runtime::Runtime;
 
 use crate::error::{AnyError, AnyResult};
 
-pub async fn run_concurrently<T, O>(handles: Vec<T>) -> Vec<O>
+pub async fn run_concurrently<T, O>(handles: impl Iterator<Item = T>) -> Vec<O>
 where
   T: FnOnce() -> Pin<Box<dyn Future<Output = Result<O, AnyError>>>>,
   O: 'static,
@@ -16,14 +17,13 @@ where
 
   local_set
     .run_until(async move {
-      let tasks: Vec<_> = handles
-        .into_iter()
-        .map(|handle| tokio::task::spawn_local(handle()))
-        .collect();
+      let tasks =
+        handles.into_iter().map(|handle| tokio::task::spawn_local(handle()));
 
+      let mut stream = stream::iter(tasks);
       let mut output = Vec::new();
 
-      for handle in tasks {
+      while let Some(handle) = stream.next().await {
         let handle_result = handle.await.unwrap();
         output.push(handle_result.unwrap());
       }
@@ -31,6 +31,30 @@ where
       output
     })
     .await
+}
+
+#[macro_export]
+macro_rules! concurrently {
+    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {
+        run_concurrently(
+            map_pinned_futures!($arr, $fut($($idents),*) $(, { $($bind = $val )* })?)
+        ).await;
+    };
+    ($arr:expr) => {
+      run_concurrently($arr).await
+    }
+}
+
+#[macro_export]
+macro_rules! map_pinned_futures {
+    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {{
+        let tasks = $arr.into_iter().map(|i_| {
+            $( $( let $bind = $val; )* )?
+
+            create_pinned_future($fut(i_, $($idents),*))
+        });
+        tasks
+    }};
 }
 
 pub fn create_pinned_future<F, O>(

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::AnyResult;
 use kurtex_binding::loader::TsModuleLoader;
 
-use crate::deno::ops::OpsLoader;
+use crate::deno::ops::ExtensionLoader;
 
 pub struct KurtexRuntime {
   pub runtime: deno_core::JsRuntime,
@@ -21,7 +21,7 @@ pub struct KurtexRuntime {
 
 #[derive(Default)]
 pub struct KurtexRuntimeOptions {
-  pub loaders: Vec<Box<dyn OpsLoader>>,
+  pub loaders: Vec<Box<dyn ExtensionLoader>>,
   pub snapshot: &'static [u8],
 }
 
@@ -83,13 +83,72 @@ impl KurtexRuntime {
     let exported_config =
       file_object_mapper.get(scope_ref, default_export.into()).unwrap();
 
+    // TODO deno_core::_ops::v8_try_convert
     Ok((R::try_from(exported_config)?, scope))
   }
 
-  pub fn get_op_state(
+  pub fn op_state(
     &mut self,
   ) -> Result<Rc<RefCell<deno_core::OpState>>, AnyError> {
     Ok(self.runtime.op_state())
+  }
+
+  pub fn mutate_state<T, U, R>(&mut self, getter: R) -> AnyResult<U>
+  where
+    T: 'static,
+    R: FnOnce(&mut T) -> U,
+  {
+    let op_state = self.runtime.op_state();
+    let mut op_state = op_state.borrow_mut();
+
+    let generic_state = op_state
+      .deref_mut()
+      .try_borrow_mut::<T>()
+      .context("Error while accessing op_state mutably.")
+      .unwrap();
+
+    Ok(getter(generic_state))
+  }
+
+  pub fn mutate_state_with<T, U, R, I>(
+    &mut self,
+    init: I,
+    getter: R,
+  ) -> AnyResult<U>
+  where
+    T: 'static,
+    R: FnOnce(I, &mut T) -> U,
+  {
+    Ok(self.mutate_state(|state| getter(init, state))?)
+  }
+
+  pub fn get_state_with<T, U, R, I>(
+    &mut self,
+    init: I,
+    getter: R,
+  ) -> AnyResult<U>
+  where
+    T: 'static,
+    R: FnOnce(I, &T) -> U,
+  {
+    Ok(self.get_state(|state| getter(init, state))?)
+  }
+
+  pub fn get_state<T, U, R>(&mut self, getter: R) -> AnyResult<U>
+  where
+    T: 'static,
+    R: FnOnce(&T) -> U,
+  {
+    let op_state = self.runtime.op_state();
+    let op_state = op_state.borrow();
+
+    let generic_state = op_state
+      .deref()
+      .try_borrow::<T>()
+      .context("Error while accessing op_state.")
+      .unwrap();
+
+    Ok(getter(generic_state))
   }
 
   async fn resolve_module_id(
@@ -140,26 +199,4 @@ impl EsmSerdeResolver {
   {
     Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
   }
-}
-
-// TODO: move somewhere
-pub fn extract_op_state_mut<R>(
-  op_state: &mut deno_core::OpState,
-) -> Result<&mut R, AnyError>
-where
-  R: 'static,
-{
-  op_state
-    .deref_mut()
-    .try_borrow_mut::<R>()
-    .context("error while accessing op_state")
-}
-
-pub fn extract_op_state<R>(
-  op_state: &deno_core::OpState,
-) -> Result<&R, AnyError>
-where
-  R: 'static,
-{
-  op_state.deref().try_borrow::<R>().context("error while accessing op_state")
 }

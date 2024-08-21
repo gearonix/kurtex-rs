@@ -1,16 +1,16 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
-pub mod context;
-pub mod structures;
+use std::sync::{Arc, Mutex};
 
 pub use context::*;
 pub use structures::*;
 
-#[derive(Clone)]
+pub mod context;
+pub mod structures;
+
+// TODO: better Arc + Mutex
+// TODO: rewrite RefCell to MutRc
 pub struct NodeCollectorManager {
-  task_queue: Vec<Rc<CollectorTask>>,
-  collector_node: Rc<CollectorNode>,
+  task_queue: Vec<Arc<Mutex<CollectorTask>>>,
+  collector_node: CollectorNode,
   has_collected: bool,
   node_factory: Option<TestCallback>,
   on_file_level: bool,
@@ -29,12 +29,9 @@ impl NodeCollectorManager {
     mode: CollectorMode,
     node_factory: Option<TestCallback>,
   ) -> Self {
-    let task_queue: Vec<Rc<CollectorTask>> = Vec::new();
-    let collector_node = Rc::new(CollectorNode {
-      identifier,
-      mode: RefCell::new(mode),
-      ..CollectorNode::default()
-    });
+    let task_queue = Vec::new();
+    let collector_node =
+      CollectorNode { identifier, mode, ..CollectorNode::default() };
 
     NodeCollectorManager {
       collector_node,
@@ -59,31 +56,24 @@ impl NodeCollectorManager {
     !self.has_collected
   }
 
+  #[inline]
   #[must_use]
-  pub fn collect_node(
-    &mut self,
-    collector_file: Rc<CollectorFile>,
-  ) -> Option<Rc<CollectorNode>> {
-    self.should_collect().then(|| {
-      self.has_collected = true;
+  pub fn collect_node(&mut self) -> CollectorNode {
+    self
+      .should_collect()
+      .then(|| {
+        self.has_collected = true;
+        let tasks_queue = self.task_queue.clone();
 
-      *self.collector_node.file.borrow_mut() = Rc::downgrade(&collector_file);
-      let tasks_queue = self.task_queue.clone();
-
-      let tasks = tasks_queue
-        .into_iter()
-        .map(|task| {
-          *task.node.borrow_mut() = Rc::downgrade(&self.collector_node);
-          *task.file.borrow_mut() = Rc::downgrade(&collector_file);
-
-          task
-        })
-        .collect();
-
-      *self.collector_node.tasks.borrow_mut() = tasks;
-
-      Rc::clone(&self.collector_node)
-    })
+        self.collector_node.update_tasks(tasks_queue);
+        self.collector_node.clone()
+      })
+      .unwrap_or_else(|| {
+        panic!(
+          "File ({node}) CollectorNode has been already collected.",
+          node = format!("{:?}", self.collector_node.identifier)
+        )
+      })
   }
 
   pub fn register_task(
@@ -92,7 +82,9 @@ impl NodeCollectorManager {
     callback: TestCallback,
     mode: CollectorMode,
   ) {
-    let created_task = Rc::new(CollectorTask::new(name, callback, mode));
+    let created_task =
+      Arc::new(Mutex::new(CollectorTask::new(name, callback, mode)));
+
     self.task_queue.push(created_task);
   }
 
@@ -101,8 +93,7 @@ impl NodeCollectorManager {
     hook_key: LifetimeHook,
     callback: TestCallback,
   ) {
-    let hook_manager = &self.collector_node.hook_manager;
-    hook_manager.borrow_mut().add_hook(hook_key, callback)
+    self.collector_node.hook_manager.add_hook(hook_key, callback);
   }
 
   pub fn reset_state(&mut self) {
@@ -112,22 +103,25 @@ impl NodeCollectorManager {
         self.task_queue.clear();
         self.has_collected = false;
 
-        let node = &self.collector_node;
-        let identifier = node.identifier.clone();
-        let mode = node.mode.clone();
+        let collector_node = &self.collector_node;
+        let identifier = collector_node.identifier.clone();
+        let mode = collector_node.mode.clone();
 
-        self.collector_node = Rc::new(CollectorNode {
-          identifier,
-          mode,
-          ..CollectorNode::default()
-        });
+        self.collector_node =
+          CollectorNode { identifier, mode, ..CollectorNode::default() };
       })
       .unwrap_or_else(|| {
         panic!("Resetting state is only allowed when on_file_level is true.")
       })
   }
 
-  pub fn get_node_factory(&self) -> &Option<TestCallback> {
-    &self.node_factory
+  pub fn get_node_factory(&self) -> Option<TestCallback> {
+    self.node_factory.as_ref().map(Clone::clone)
+  }
+}
+
+impl Default for NodeCollectorManager {
+  fn default() -> Self {
+    NodeCollectorManager::new_with_file()
   }
 }

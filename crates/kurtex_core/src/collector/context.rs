@@ -1,56 +1,39 @@
-use std::cell::RefCell;
+use rccell::RcCell;
 
 use crate::collector::NodeCollectorManager;
-use mut_rc::MutRc;
 
 pub struct CollectorContext {
-  nodes: RefCell<Vec<MutRc<NodeCollectorManager>>>,
-  current_node: RefCell<MutRc<NodeCollectorManager>>,
-  default_node: MutRc<NodeCollectorManager>,
+  collectors: Vec<RcCell<NodeCollectorManager>>,
+  current: RcCell<NodeCollectorManager>,
 }
 
 #[derive(Default)]
 pub struct CollectorMetadata {
-  pub(crate) only_mode: RefCell<bool>,
+  pub(crate) only_mode: bool,
 }
 
 impl CollectorContext {
-  pub fn new() -> Self {
-    let file_node = MutRc::new(NodeCollectorManager::new_with_file());
-    let nodes = RefCell::new(Vec::new());
-
-    CollectorContext {
-      nodes,
-      current_node: RefCell::new(file_node.clone()),
-      default_node: file_node,
-    }
+  pub fn register_collector(&mut self, new_node: RcCell<NodeCollectorManager>) {
+    self.collectors.push(new_node.clone());
+    self.set_current(new_node);
   }
 
-  pub fn register_node(&self, new_node: MutRc<NodeCollectorManager>) {
-    self.nodes.borrow_mut().push(new_node.clone());
-    self.set_current_node(new_node);
+  pub fn set_current(&mut self, new_node: RcCell<NodeCollectorManager>) {
+    self.current = new_node
   }
 
-  pub fn set_current_node(&self, new_node: MutRc<NodeCollectorManager>) {
-    *self.current_node.borrow_mut() = new_node
+  pub fn get_current(&self) -> RcCell<NodeCollectorManager> {
+    self.current.clone()
   }
 
-  pub fn get_current_node(&self) -> RefCell<MutRc<NodeCollectorManager>> {
-    self.current_node.clone()
+  pub fn acquire_collectors(&self) -> Vec<RcCell<NodeCollectorManager>> {
+    self.collectors.clone()
   }
+}
 
-  pub fn clear(&mut self) {
-    self.nodes.borrow_mut().clear();
-    self.default_node.with_mut(|t| t.reset_state()).unwrap();
-    self.set_current_node(self.default_node.clone())
-  }
-
-  pub fn get_all_collectors(
-    &self,
-  ) -> RefCell<Vec<MutRc<NodeCollectorManager>>> {
-    let all_nodes = self.nodes.clone();
-    all_nodes.borrow_mut().push(self.default_node.clone());
-
-    all_nodes
+impl Default for CollectorContext {
+  fn default() -> Self {
+    let node = RcCell::new(NodeCollectorManager::default());
+    CollectorContext { collectors: vec![node.clone()], current: node }
   }
 }

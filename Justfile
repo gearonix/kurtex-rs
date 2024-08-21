@@ -28,6 +28,10 @@ default:
 @check:
     cargo check
 
+@watch-check:
+    command -v cargo-watch > /dev/null || (echo "cargo-watch is not installed" && exit 1)
+    cargo watch -x "check"
+
 
 @release:
     cargo build --release --verbose
@@ -42,7 +46,7 @@ default:
     cargo run --package=kurtex_cli
 
 
-@dev:
+@watch:
     command -v cargo-watch > /dev/null || (echo "cargo-watch is not installed" && exit 1)
     cargo watch -x "run --package=kurtex_cli"
 

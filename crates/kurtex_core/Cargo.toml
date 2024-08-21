@@ -15,9 +15,12 @@ reqwest.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-mut-rc.workspace = true
 hashbrown.workspace = true
 anyhow.workspace = true
+rayon = "1.10.0"
 
 # Local dependencies
 kurtex_binding = { path = "../kurtex_binding" }
+static_assertions = "1.1.0"
+tokio-stream = "0.1.15"
+rccell = "0.1.3"

@@ -1,18 +1,18 @@
 use std::cell::RefCell;
 use std::fmt::Formatter;
+use std::ops::Deref;
 use std::path::PathBuf;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
-use deno_core::convert::Smi;
 use deno_core::v8;
-use deno_core::v8::{HandleScope, Local, Value};
 use hashbrown::HashMap;
 
 use crate::error::AnyError;
 
-#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CollectorMode {
   #[default]
   Run,
@@ -21,7 +21,7 @@ pub enum CollectorMode {
   Todo,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CollectorState {
   Custom(CollectorMode),
   Fail,
@@ -32,8 +32,8 @@ impl<'a> deno_core::FromV8<'a> for CollectorMode {
   type Error = deno_core::error::StdAnyError;
 
   fn from_v8(
-    scope: &mut HandleScope<'a>,
-    value: Local<'a, Value>,
+    scope: &mut v8::HandleScope<'a>,
+    value: v8::Local<'a, v8::Value>,
   ) -> Result<Self, Self::Error> {
     let owned_string = deno_core::_ops::to_string(scope, &value);
 
@@ -67,8 +67,8 @@ impl<'a> deno_core::FromV8<'a> for CollectorIdentifier {
   type Error = deno_core::error::StdAnyError;
 
   fn from_v8(
-    scope: &mut HandleScope<'a>,
-    value: Local<'a, Value>,
+    scope: &mut v8::HandleScope<'a>,
+    value: v8::Local<'a, v8::Value>,
   ) -> Result<Self, Self::Error> {
     let identifier =
       CollectorIdentifier::Custom(deno_core::_ops::to_string(scope, &value));
@@ -82,7 +82,7 @@ impl std::fmt::Debug for CollectorIdentifier {
     const FILE_IDENT: &'static str = "$$file";
 
     let identifier = match self {
-      CollectorIdentifier::Custom(e) => &e,
+      CollectorIdentifier::Custom(e) => e,
       CollectorIdentifier::File => FILE_IDENT,
     };
 
@@ -92,9 +92,15 @@ impl std::fmt::Debug for CollectorIdentifier {
 
 #[derive(Default)]
 pub struct CollectorFile {
-  pub file_path: PathBuf,
-  pub collected: RefCell<bool>,
-  pub nodes: RefCell<Vec<Rc<CollectorNode>>>,
+  pub(crate) file_path: PathBuf,
+  pub(crate) collected: bool,
+  pub(crate) nodes: Vec<Arc<Mutex<CollectorNode>>>,
+}
+
+impl CollectorFile {
+  pub fn from_path(file_path: PathBuf) -> Self {
+    CollectorFile { file_path, ..CollectorFile::default() }
+  }
 }
 
 // temporary
@@ -102,42 +108,83 @@ impl std::fmt::Debug for CollectorFile {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("CollectorFile")
       .field("file", &self.file_path)
-      .field("collected", &self.collected.borrow())
-      .field("nodes", &self.nodes.borrow().iter().map(|n| n))
+      .field("collected", &self.collected)
+      .field("nodes", &self.nodes)
       .finish()
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct CollectorNode {
   pub(crate) identifier: CollectorIdentifier,
-  pub(crate) mode: RefCell<CollectorMode>,
-  pub(crate) tasks: RefCell<Vec<Rc<CollectorTask>>>,
-  pub(crate) file: RefCell<Weak<CollectorFile>>,
+  pub(crate) mode: CollectorMode,
+  pub(crate) tasks: Vec<Arc<Mutex<CollectorTask>>>,
   pub(crate) status: Option<CollectorState>,
-  pub(crate) hook_manager: RefCell<LifetimeHookManager>,
+  pub(crate) hook_manager: LifetimeHookManager,
+}
+
+impl CollectorNode {
+  pub fn update_tasks(&mut self, tasks: Vec<Arc<Mutex<CollectorTask>>>) {
+    self.tasks = tasks
+  }
 }
 
 impl std::fmt::Debug for CollectorNode {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("CollectorNode")
       .field("name", &self.identifier)
-      .field("mode", &self.mode.borrow())
-      .field("tasks", &self.tasks.borrow().iter().map(|n| n))
+      .field("mode", &self.mode)
+      .field("tasks", &self.tasks)
       .finish()
   }
 }
 
-pub type TestCallback = v8::Global<v8::Function>;
+// TODO: think about removing Clone traits
+// Kurtex generic callback.
+#[derive(Debug, Clone)]
+pub struct TestCallback(v8::Global<v8::Function>);
 
-// TODO think about making whole struct
-// RefCell instead of fields
+unsafe impl Send for TestCallback {}
+unsafe impl Sync for TestCallback {}
+
+static_assertions::assert_impl_any!(TestCallback: Send);
+static_assertions::assert_impl_any!(TestCallback: Sync);
+
+impl From<v8::Global<v8::Function>> for TestCallback {
+  fn from(value: v8::Global<v8::Function>) -> Self {
+    TestCallback(value)
+  }
+}
+
+impl Deref for TestCallback {
+  type Target = v8::Global<v8::Function>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
+impl<'a> deno_core::FromV8<'a> for TestCallback {
+  type Error = deno_core::error::StdAnyError;
+
+  fn from_v8(
+    scope: &mut v8::HandleScope<'a>,
+    value: v8::Local<'a, v8::Value>,
+  ) -> Result<Self, Self::Error> {
+    let Ok(local_cb) = deno_core::_ops::v8_try_convert::<v8::Function>(value)
+    else {
+      panic!("Failed to convert parameter (deno_core::ops::v8_try_convert). Expected function.");
+    };
+    let global_cb = v8::Global::new(scope, local_cb);
+
+    Ok(TestCallback(global_cb))
+  }
+}
+
 pub struct CollectorTask {
   pub(crate) name: String,
-  pub(crate) mode: RefCell<CollectorMode>,
-  pub(crate) state: RefCell<CollectorState>,
-  pub(crate) node: RefCell<Weak<CollectorNode>>,
-  pub(crate) file: RefCell<Weak<CollectorFile>>,
+  pub(crate) mode: CollectorMode,
+  pub(crate) state: CollectorState,
   pub(crate) callback: TestCallback,
 }
 
@@ -156,17 +203,11 @@ impl CollectorTask {
     callback: TestCallback,
     mode: CollectorMode,
   ) -> Self {
-    CollectorTask {
-      name,
-      mode: RefCell::new(mode),
-      file: RefCell::new(Weak::new()),
-      node: RefCell::new(Weak::new()),
-      state: RefCell::new(CollectorState::Custom(mode)),
-      callback,
-    }
+    CollectorTask { name, mode, state: CollectorState::Custom(mode), callback }
   }
 }
 
+#[derive(Clone)]
 pub struct LifetimeHookManager {
   data: HashMap<LifetimeHook, Vec<TestCallback>>,
 }
@@ -201,7 +242,7 @@ impl Default for LifetimeHookManager {
   }
 }
 
-#[derive(Eq, Hash, PartialEq, Debug)]
+#[derive(Eq, Hash, PartialEq, Debug, Clone)]
 pub enum LifetimeHook {
   BeforeAll,
   AfterAll,
@@ -213,8 +254,8 @@ impl<'a> deno_core::FromV8<'a> for LifetimeHook {
   type Error = deno_core::error::StdAnyError;
 
   fn from_v8(
-    scope: &mut HandleScope<'a>,
-    value: Local<'a, Value>,
+    scope: &mut v8::HandleScope<'a>,
+    value: v8::Local<'a, v8::Value>,
   ) -> Result<Self, Self::Error> {
     let owned_string = deno_core::_ops::to_string(scope, &value);
 

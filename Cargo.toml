@@ -4,8 +4,8 @@ members = ["crates/*"]
 
 
 [workspace.package]
-name = "kurtex"
 version = "0.1.0"
+license = "MIT"
 edition = "2021"
 repository = "https://github.com/kurtexdev/kurtex"
 
@@ -16,8 +16,8 @@ reqwest = { version = "0.12.5" }
 tokio = { version = "1.39.2", features = ["full"] }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = { version = "1.0.121" }
-mut-rc = { version = "0.1.2" }
-hashbrown = { version = "0.14.5" }
+
+hashbrown = { version = "0.14.5", features = ["rayon"] }
 anyhow = { version = "1.0.86" }
 
 # Local dependencies

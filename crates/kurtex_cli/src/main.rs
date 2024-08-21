@@ -74,7 +74,7 @@ fn build_cli() -> Command {
     .arg(
       Arg::new("parallel")
         .long("parallel")
-        .action(ArgAction::SetFalse)
+        .action(ArgAction::SetTrue)
         .help("Run tasks in parallel")
         .value_parser(clap::value_parser!(bool)),
     )

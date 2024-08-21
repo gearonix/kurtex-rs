@@ -1,2 +1,19 @@
 [env]
 CARGO_WORKSPACE_DIR = { value = "", relative = true }
+
+[target.'cfg(all())']
+rustflags = [
+    "-Wclippy::all",
+    "-Wclippy::dbg_macro",
+    "-Wclippy::unwrap_used",
+    "-Wclippy::empty_drop",
+    "-Wclippy::exit",
+    "-Wclippy::empty_structs_with_brackets",
+    "-Wclippy::rc_buffer",
+    "-Wclippy::rc_mutex",
+    "-Wclippy::same_name_method",
+    "-Aclippy::default_constructed_unit_structs",
+    "-C", "symbol-mangling-version=v0",
+    "-Awarnings",
+    "-Anotes"
+]
