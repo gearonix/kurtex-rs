@@ -1150,6 +1150,7 @@ dependencies = [
  "deno_ast",
  "deno_core",
  "hashbrown",
+ "rccell",
  "reqwest",
  "serde",
  "serde_json",

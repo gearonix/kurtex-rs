@@ -12,8 +12,9 @@ use crate::collector::{
   CollectorState, NodeCollectorManager,
 };
 use crate::config::loader::KurtexConfig;
-use crate::deno::ops::{CollectorRegistryExt, ExtensionLoader};
+use crate::deno::ops::CollectorRegistryExt;
 use crate::deno::runtime::{KurtexRuntime, KurtexRuntimeOptions};
+use crate::deno::ExtensionLoader;
 use crate::error::AnyResult;
 use crate::util::tokio::{create_pinned_future, run_concurrently};
 use crate::walk::Walk;
@@ -128,12 +129,45 @@ impl TestRunner {
 
         Ok(arc_mut!(collected_node).clone())
       }
+      let mut collector_file = CollectorFile::from_path(file_path);
 
-      let nodes = concurrently!(obtained_collectors, run_collector(runtime), {
-        runtime = runtime.clone()
-      });
+      for collector in obtained_collectors {
+        let mut runtime = runtime.borrow_mut();
 
-      Ok(arc!(CollectorFile { file_path, collected: true, nodes }))
+        runtime.mutate_state_with(
+          collector.clone(),
+          |clr, ctx: &mut CollectorContext| {
+            ctx.set_current(clr);
+          },
+        )?;
+
+        let node_factory = {
+          let clr = collector.borrow_mut();
+          clr.get_node_factory()
+        };
+
+        if let Some(factory) = node_factory {
+          runtime.call_v8_function(&factory).await.unwrap();
+        }
+
+        let collected_node = collector.borrow_mut().collect_node();
+
+        #[rustfmt::skip]
+        runtime.mutate_state_with(
+          &collected_node,
+          |CollectorNode { mode, .. },
+           meta: &mut CollectorMetadata| match mode {
+            CollectorMode::Only => meta.only_mode = true,
+            _ => (),
+          },
+        )?;
+
+        collector_file.nodes.push(arc_mut!(collected_node));
+      }
+
+      collector_file.collected = true;
+
+      Ok(arc!(collector_file))
     }
 
     let processed_files = map_pinned_futures!(
@@ -175,8 +209,8 @@ impl TestRunner {
     let included_cases = Walk::new(&includes, root_dir).build();
     let mut excluded_cases = Walk::new(&excludes, root_dir).build();
 
-    // TODO rewrite: **/node_modules/**
-    // TODO: parallel
+    // TODO: rewrite: **/node_modules/**, parallel
+    // TODO: build times
     Ok(included_cases.filter(move |included_path| {
       !excluded_cases.any(|excluded_path| excluded_path.eq(included_path))
     }))
@@ -196,36 +230,33 @@ impl TestRunner {
       *target_mode = updated_mode;
     }
 
-    let _ = file_map.par_values().map(|file| {
+    let _ = file_map.par_values().for_each(|file| {
       file.nodes.par_iter().for_each(|node| {
         let mut node = node.lock().unwrap();
 
         meta.only_mode.then(|| interpret_only_mode(&mut node.mode));
+        let mut scoped_only_mode = false;
 
-        let scoped_only_mode = false;
-        node.tasks.par_iter().for_each_with(
-          scoped_only_mode,
-          |scoped, task| {
-            let mut task = task.lock().unwrap();
+        for task in &node.tasks {
+          let mut task = task.lock().unwrap();
 
-            match node.mode {
-              CollectorMode::Skip => task.mode = CollectorMode::Skip,
-              _ => (),
-            };
+          match node.mode {
+            CollectorMode::Skip => task.mode = CollectorMode::Skip,
+            _ => (),
+          };
 
-            match task.mode {
-              CollectorMode::Skip => {
-                let updated_state = CollectorState::Custom(CollectorMode::Skip);
-                task.state = updated_state
-              }
-              CollectorMode::Only => *scoped = true,
-              _ => (),
-            };
-          },
-        );
+          match task.mode {
+            CollectorMode::Skip => {
+              let updated_state = CollectorState::Custom(CollectorMode::Skip);
+              task.state = updated_state
+            }
+            CollectorMode::Only => scoped_only_mode = true,
+            _ => (),
+          };
+        }
 
         scoped_only_mode.then(|| {
-          node.tasks.par_iter().for_each(|task| {
+          node.tasks.iter().for_each(|task| {
             let mut task = task.lock().unwrap();
             interpret_only_mode(&mut task.mode);
           })

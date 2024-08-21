@@ -5,7 +5,7 @@ import type {
   KurtexPublicApi,
   LifetimeHookType,
   ObjectEntry,
-  TaskCell,
+  TaskFactory,
   Test,
   TestCallback,
   TestFactory
@@ -14,7 +14,7 @@ import type {
 const { core } = Deno
 const { ops } = core
 
-function registerTaskImpl(runMode: CollectorRunMode): TaskCell {
+function registerTaskImpl(runMode: CollectorRunMode): TaskFactory {
   return (identifier: string, callback: TestCallback | undefined) => {
     kurtexInternals.registerCollectorTask(
       identifier,

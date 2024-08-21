@@ -97,7 +97,7 @@ impl ConfigLoader {
     }
   }
 
-  fn parse_json_file(&self) -> Result<KurtexConfig, AnyError> {
+  fn parse_json_file(&self) -> AnyResult<KurtexConfig> {
     let config_path = self.config_path.as_ref();
 
     let cfg_contents = fs::read_to_string(config_path).map_err(|e| {
@@ -112,11 +112,11 @@ impl ConfigLoader {
       .map_err(|_| anyhow!("Failed to deserialize config file (json)"))
   }
 
-  async fn parse_esm_file(&self) -> Result<KurtexConfig, AnyError> {
-    let mut resolver = KurtexRuntime::new(KurtexRuntimeOptions::default());
-    let module_id = resolver.process_esm_file(&self.config_path, true).await?;
+  async fn parse_esm_file(&self) -> AnyResult<KurtexConfig> {
+    let mut runtime = KurtexRuntime::default();
+    let module_id = runtime.process_esm_file(&self.config_path, true).await?;
 
-    let (exports, scope) = resolver
+    let (exports, scope) = runtime
       .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
       .await?;
     EsmSerdeResolver::serialize::<KurtexConfig>(scope, exports)

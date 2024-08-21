@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::Context;
 use deno_ast::{EmitOptions, MediaType, ParseParams, SourceMapOption};
 use deno_core::{ModuleLoadResponse, ModuleSourceCode, ModuleType};
 
@@ -44,8 +45,15 @@ where
   }
 }
 
+#[macro_export]
+macro_rules! pin {
+    ($($tt:tt)*) => {
+        ::std::boxed::Box::pin(async move { $($tt)* })
+    };
+}
+
 #[derive(Default)]
-pub struct TsModuleLoader;
+pub struct TsModuleLoader {}
 
 impl deno_core::ModuleLoader for TsModuleLoader {
   fn resolve(
@@ -67,13 +75,7 @@ impl deno_core::ModuleLoader for TsModuleLoader {
     let module_specifier = module_specifier.clone();
     let maybe_referrer = _maybe_referrer.map(|url| url.clone());
 
-    #[inline]
-    #[must_use]
-    fn extract_extension(path: &PathBuf) -> Cow<'_, str> {
-      path.extension().unwrap().to_string_lossy()
-    }
-
-    let module_load = Box::pin(async move {
+    let module_load = pin! {
       let mut module_path = module_specifier.to_file_path().unwrap();
 
       let get_referrer_extension =
@@ -82,20 +84,22 @@ impl deno_core::ModuleLoader for TsModuleLoader {
             Some(referrer_url) => {
               let mut referrer_path = referrer_url;
 
-              let updated_ext = vec![
-                extract_extension(&module_path),
-                extract_extension(&referrer_path),
-              ];
+            let module_ext = module_path.extension().unwrap();
+            let referrer_ext = referrer_path.extension().unwrap();
+            let mut new_ext = module_ext.to_os_string();
 
-              module_path.set_extension(updated_ext.join("."));
+            new_ext.push(".");
+            new_ext.push(referrer_ext);
 
-              get_module_type_from_path(
-                &mut referrer_path,
-                None::<fn(&mut PathBuf) -> (ModuleType, bool)>,
-              )
+            module_path.set_extension(new_ext);
+
+            get_module_type_from_path(
+              &mut referrer_path,
+              None::<fn(&mut PathBuf) -> (ModuleType, bool)>,
+            )
             }
             None => {
-              panic!("Unknown extension: {}", extract_extension(&module_path));
+              panic!("Unknown extension. File {module_path:?}");
             }
           }
         };
@@ -106,7 +110,10 @@ impl deno_core::ModuleLoader for TsModuleLoader {
       );
 
       let media_type = MediaType::from_path(&module_path);
-      let code = std::fs::read_to_string(&module_path.as_path())?;
+      let code =
+        std::fs::read_to_string(&module_path.as_path()).with_context(|| {
+          format!("Trying to load {module_path:?} for {module_specifier}")
+        })?;
 
       let code = if should_transpile {
         let parsed = deno_ast::parse_module(ParseParams {
@@ -117,18 +124,17 @@ impl deno_core::ModuleLoader for TsModuleLoader {
           scope_analysis: false,
           maybe_syntax: None,
         })?;
-        let source_buffer = parsed
+
+        let source_bytes = parsed
           .transpile(
             &Default::default(),
             &EmitOptions {
-              source_map: SourceMapOption::None,
+              source_map: SourceMapOption::Inline,
               ..EmitOptions::default()
             },
-          )?
-          .into_source()
-          .source;
+          )?.into_source();
 
-        String::from_utf8(source_buffer)?
+        String::from_utf8(source_bytes.source)?
       } else {
         code
       };
@@ -139,7 +145,7 @@ impl deno_core::ModuleLoader for TsModuleLoader {
         None,
       );
       Ok(module)
-    });
+    };
 
     ModuleLoadResponse::Async(module_load)
   }

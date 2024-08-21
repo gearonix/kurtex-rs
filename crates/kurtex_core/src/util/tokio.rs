@@ -8,6 +8,30 @@ use tokio::runtime::Runtime;
 
 use crate::error::{AnyError, AnyResult};
 
+#[macro_export]
+macro_rules! concurrently {
+    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {
+        run_concurrently(
+            map_pinned_futures!($arr, $fut($($idents),*) $(, { $($bind = $val )* })?)
+        ).await;
+    };
+    ($arr:expr) => {
+      run_concurrently($arr).await
+    }
+}
+
+#[macro_export]
+macro_rules! map_pinned_futures {
+    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {{
+        let tasks = $arr.into_iter().map(|i_| {
+            $( $( let $bind = $val; )* )?
+
+            create_pinned_future($fut(i_, $($idents),*))
+        });
+        tasks
+    }};
+}
+
 pub async fn run_concurrently<T, O>(handles: impl Iterator<Item = T>) -> Vec<O>
 where
   T: FnOnce() -> Pin<Box<dyn Future<Output = Result<O, AnyError>>>>,
@@ -31,30 +55,6 @@ where
       output
     })
     .await
-}
-
-#[macro_export]
-macro_rules! concurrently {
-    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {
-        run_concurrently(
-            map_pinned_futures!($arr, $fut($($idents),*) $(, { $($bind = $val )* })?)
-        ).await;
-    };
-    ($arr:expr) => {
-      run_concurrently($arr).await
-    }
-}
-
-#[macro_export]
-macro_rules! map_pinned_futures {
-    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {{
-        let tasks = $arr.into_iter().map(|i_| {
-            $( $( let $bind = $val; )* )?
-
-            create_pinned_future($fut(i_, $($idents),*))
-        });
-        tasks
-    }};
 }
 
 pub fn create_pinned_future<F, O>(

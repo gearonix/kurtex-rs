@@ -1,17 +1,14 @@
 use rccell::RcCell;
 use std::borrow::Cow;
-use std::rc::Rc;
 
 use crate::collector::{
-  CollectorContext, CollectorIdentifier, CollectorMetadata, CollectorMode,
-  LifetimeHook, NodeCollectorManager,
+  CollectorContext, CollectorIdentifier, CollectorMode, LifetimeHook,
+  NodeCollectorManager,
 };
-use crate::TestCallback;
+use crate::deno::ExtensionLoader;
+use crate::{CollectorMetadata, TestCallback};
 
-pub trait ExtensionLoader {
-  fn load(&self) -> deno_core::Extension;
-}
-
+// Kurtex V8 -> Rust interface layer.
 pub struct CollectorRegistryExt;
 
 impl CollectorRegistryExt {
@@ -88,6 +85,7 @@ impl ExtensionLoader for CollectorRegistryExt {
       name: EXTENSION_IDENTIFIER,
       ops: Cow::Owned(collector_registry_ops),
       op_state_fn: Some(provide_state),
+      enabled: true,
       ..deno_core::Extension::default()
     }
   }

@@ -6,8 +6,6 @@ pub use structures::*;
 pub mod context;
 pub mod structures;
 
-// TODO: better Arc + Mutex
-// TODO: rewrite RefCell to MutRc
 pub struct NodeCollectorManager {
   task_queue: Vec<Arc<Mutex<CollectorTask>>>,
   collector_node: CollectorNode,

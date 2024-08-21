@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::AnyResult;
 use kurtex_binding::loader::TsModuleLoader;
 
-use crate::deno::ops::ExtensionLoader;
+use crate::deno::ExtensionLoader;
 
 pub struct KurtexRuntime {
   pub runtime: deno_core::JsRuntime,
@@ -83,7 +83,6 @@ impl KurtexRuntime {
     let exported_config =
       file_object_mapper.get(scope_ref, default_export.into()).unwrap();
 
-    // TODO deno_core::_ops::v8_try_convert
     Ok((R::try_from(exported_config)?, scope))
   }
 
@@ -172,7 +171,6 @@ impl KurtexRuntime {
     }
   }
 
-  // TODO: smallvec jsruntime.rs
   pub async fn call_v8_function<'a>(
     &mut self,
     callback: &'a v8::Global<v8::Function>,
@@ -182,6 +180,12 @@ impl KurtexRuntime {
       .runtime
       .with_event_loop_promise(call, PollEventLoopOptions::default())
       .await
+  }
+}
+
+impl Default for KurtexRuntime {
+  fn default() -> Self {
+    KurtexRuntime::new(KurtexRuntimeOptions::default())
   }
 }
 

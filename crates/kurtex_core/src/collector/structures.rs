@@ -1,8 +1,6 @@
-use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -19,13 +17,6 @@ pub enum CollectorMode {
   Skip,
   Only,
   Todo,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum CollectorState {
-  Custom(CollectorMode),
-  Fail,
-  Pass,
 }
 
 impl<'a> deno_core::FromV8<'a> for CollectorMode {
@@ -54,6 +45,13 @@ impl FromStr for CollectorMode {
       _ => Err(anyhow!("Invalid CollectorRunMode variant: '{}'", s)),
     }
   }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CollectorState {
+  Custom(CollectorMode),
+  Fail,
+  Pass,
 }
 
 #[derive(Default, Clone)]
@@ -139,7 +137,6 @@ impl std::fmt::Debug for CollectorNode {
   }
 }
 
-// TODO: think about removing Clone traits
 // Kurtex generic callback.
 #[derive(Debug, Clone)]
 pub struct TestCallback(v8::Global<v8::Function>);
