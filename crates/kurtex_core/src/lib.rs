@@ -1,3 +1,6 @@
+#![feature(async_closure)]
+#![feature(try_blocks)]
+
 pub mod collector;
 pub mod config;
 pub mod deno;
@@ -5,6 +8,7 @@ pub mod error;
 pub mod runner;
 pub mod util;
 pub mod walk;
+mod reporter;
 
 pub use crate::collector::*;
 pub use crate::config::loader::*;

@@ -10,27 +10,55 @@ use crate::error::{AnyError, AnyResult};
 
 #[macro_export]
 macro_rules! concurrently {
-    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {
+    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {{
+        use crate::tokio::*;
+
         run_concurrently(
             map_pinned_futures!($arr, $fut($($idents),*) $(, { $($bind = $val )* })?)
-        ).await;
-    };
-    ($arr:expr) => {
-      run_concurrently($arr).await
-    }
+        ).await
+    }};
+    ($arr:expr) => {{
+        use crate::tokio::*;
+
+        run_concurrently($arr).await
+    }}
 }
 
 #[macro_export]
 macro_rules! map_pinned_futures {
-    ($arr:expr, $fut:ident($($idents:ident),*) $(, { $($bind:ident = $val:expr)* } )? $(,)?) => {{
+    ($arr:expr, $fut:ident($($idents:ident),*)
+      $(, { $($bind:ident = $val:expr)* } $(,$i_closure:tt)?)? ) => {{
+        use crate::tokio::create_pinned_future;
+
         let tasks = $arr.into_iter().map(|i_| {
-            $( $( let $bind = $val; )* )?
+            $(
+            $( let $bind = $val; )*
+             $( let i_ = $i_closure(i_); )?
+            )?
 
             create_pinned_future($fut(i_, $($idents),*))
         });
         tasks
     }};
+
+    ($self:ident $arr:expr, $fut:ident($($idents:ident),*)
+      $(, { $($bind:ident = $val:expr)* } $(,$i_closure:tt)?)? ) => {{
+        use crate::tokio::create_pinned_future;
+
+        let tasks = $arr.into_iter().map(|i_| {
+            $(
+            $( let $bind = $val; )*
+             $( let i_ = $i_closure(i_); )?
+            )?
+
+            create_pinned_future($self.$fut(i_, $($idents),*))
+        });
+        tasks
+    }};
 }
+
+pub use concurrently;
+pub use map_pinned_futures;
 
 pub async fn run_concurrently<T, O>(handles: impl Iterator<Item = T>) -> Vec<O>
 where

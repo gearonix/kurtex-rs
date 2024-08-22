@@ -18,6 +18,8 @@ serde = { version = "1.0.204", features = ["derive"] }
 serde_json = { version = "1.0.121" }
 rccell = "0.1.3"
 tokio-stream = "0.1.15"
+nu-ansi-term = "=0.50.1"
+log = "0.4.22"
 
 hashbrown = { version = "0.14.5", features = ["rayon"] }
 anyhow = { version = "1.0.86" }

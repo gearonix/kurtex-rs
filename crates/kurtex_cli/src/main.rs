@@ -1,5 +1,6 @@
 use std::env;
 
+use crate::result::CliResult;
 use anyhow::{Context, Error};
 use clap::builder::Command;
 use clap::{Arg, ArgAction};
@@ -7,10 +8,14 @@ use tracing_subscriber::filter::FilterExt;
 
 use crate::runner::{CliRunner, Runner};
 
+mod logger;
+mod result;
 mod runner;
 
-fn main() -> Result<(), Error> {
+fn main() -> CliResult {
   init_tracing();
+
+  logger::configure(env::var_os(vars::KURTEX_LOG));
 
   let cli = build_cli();
   let matches = cli.get_matches();
@@ -22,7 +27,7 @@ fn init_tracing() {
   use tracing_subscriber::{filter::Targets, prelude::*};
 
   tracing_subscriber::registry()
-    .with(env::var("KURTEX_LOG").map_or_else(
+    .with(env::var(vars::KURTEX_LOG).map_or_else(
       |_| Targets::new(),
       |env_var| env_var.parse::<Targets>().unwrap(),
     ))
@@ -89,4 +94,9 @@ pub mod exits {
 pub mod settings {
   pub const RUNTIME_SNAPSHOT: &'static [u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/KURTEX_SNAPSHOT.bin"));
+}
+
+pub mod vars {
+  pub const CLI_NAME: &'static str = env!("CARGO_BIN_NAME");
+  pub const KURTEX_LOG: &'static str = "KURTEX_LOG";
 }

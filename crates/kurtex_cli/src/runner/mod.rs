@@ -1,15 +1,21 @@
 use std::path::PathBuf;
+use std::pin::pin;
+use std::rc::Rc;
 
 use anyhow::{Context, Error};
 use clap::ArgMatches;
 use kurtex_core::error::AnyResult;
 use tokio::time;
 
+use crate::result::CliResult;
 use crate::settings;
 use kurtex_core::config::loader::ConfigLoader;
-use kurtex_core::runner::{RuntimeOptions, TestRunner, TestRunnerOptions};
+use kurtex_core::runner::collector::{
+  EmitRuntimeOptions, FileCollector, TestRunnerConfig,
+};
 use kurtex_core::util::tokio::run_async;
 use kurtex_core::walk::{Extensions, Walk};
+use kurtex_core::RcCell;
 
 /// A trait for exposing functionality to the CLI.
 pub trait Runner {
@@ -36,7 +42,7 @@ impl Runner for CliRunner {
     Self { options }
   }
 
-  fn run(mut self) -> Result<(), Error> {
+  fn run(mut self) -> CliResult {
     let mut opts = self.options;
     let root_dir = opts.remove_one::<PathBuf>("root");
     let watch = opts.remove_one::<bool>("watch").unwrap();
@@ -46,7 +52,8 @@ impl Runner for CliRunner {
     let config_path = opts.remove_one::<String>("config").unwrap();
     let mut config_path = PathBuf::from(config_path);
 
-    let current_dir = std::env::current_dir().context("Unable to get CWD")?;
+    let current_dir =
+      std::env::current_dir().context("Unable to get CWD.").unwrap();
     let root_dir = root_dir.unwrap_or(current_dir);
     root_dir.join(&config_path).clone_into(&mut config_path);
 
@@ -66,7 +73,7 @@ impl Runner for CliRunner {
     };
 
     let config_path_ = config_path.clone();
-    let mut runner_options = TestRunnerOptions {
+    let mut runner_config = TestRunnerConfig {
       watch,
       globals,
       config_path,
@@ -77,24 +84,24 @@ impl Runner for CliRunner {
 
     let config_loader = ConfigLoader::new(config_path_.display().to_string());
 
-    run_async(
-      async {
-        let config_file = config_loader.load().await.unwrap();
-        runner_options.adjust_config_file(config_file);
-        let test_runner = TestRunner::new(
-          runner_options,
-          RuntimeOptions::new_from_snapshot(settings::RUNTIME_SNAPSHOT),
-        );
+    let runner = Box::pin(async move {
+      let config_file = config_loader.load().await.unwrap();
 
-        test_runner.run().await
-      },
-      Some(rt),
-    );
+      runner_config.adjust_config_file(config_file);
+
+      kurtex_core::runner::run(
+        runner_config,
+        EmitRuntimeOptions::new_from_snapshot(settings::RUNTIME_SNAPSHOT),
+      )
+      .await
+    });
+
+    run_async(runner, Some(rt));
 
     #[cfg(debug_assertions)]
     println!("Elapsed time: {:?} ms", now.elapsed().as_millis());
 
-    Ok(())
+    CliResult::None
   }
 }
 

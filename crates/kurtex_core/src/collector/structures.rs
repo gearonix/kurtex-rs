@@ -47,10 +47,11 @@ impl FromStr for CollectorMode {
   }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum CollectorState {
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub enum CollectorStatus {
   Custom(CollectorMode),
   Fail,
+  #[default]
   Pass,
 }
 
@@ -117,14 +118,8 @@ pub struct CollectorNode {
   pub(crate) identifier: CollectorIdentifier,
   pub(crate) mode: CollectorMode,
   pub(crate) tasks: Vec<Arc<Mutex<CollectorTask>>>,
-  pub(crate) status: Option<CollectorState>,
+  pub(crate) status: CollectorStatus,
   pub(crate) hook_manager: LifetimeHookManager,
-}
-
-impl CollectorNode {
-  pub fn update_tasks(&mut self, tasks: Vec<Arc<Mutex<CollectorTask>>>) {
-    self.tasks = tasks
-  }
 }
 
 impl std::fmt::Debug for CollectorNode {
@@ -181,7 +176,7 @@ impl<'a> deno_core::FromV8<'a> for TestCallback {
 pub struct CollectorTask {
   pub(crate) name: String,
   pub(crate) mode: CollectorMode,
-  pub(crate) state: CollectorState,
+  pub(crate) status: CollectorStatus,
   pub(crate) callback: TestCallback,
 }
 
@@ -200,7 +195,12 @@ impl CollectorTask {
     callback: TestCallback,
     mode: CollectorMode,
   ) -> Self {
-    CollectorTask { name, mode, state: CollectorState::Custom(mode), callback }
+    CollectorTask {
+      name,
+      mode,
+      status: CollectorStatus::Custom(mode),
+      callback,
+    }
   }
 }
 
@@ -211,7 +211,7 @@ pub struct LifetimeHookManager {
 
 impl LifetimeHookManager {
   pub fn new() -> Self {
-    let mut hooks: HashMap<LifetimeHook, Vec<TestCallback>> = HashMap::new();
+    let mut hooks: HashMap<_, _> = HashMap::new();
 
     hooks.insert(LifetimeHook::BeforeAll, Vec::new());
     hooks.insert(LifetimeHook::AfterAll, Vec::new());
@@ -230,6 +230,13 @@ impl LifetimeHookManager {
         Some(partition)
       })
       .unwrap_or_else(|| panic!("Wrong lifetime hook partition."));
+  }
+
+  pub fn get_by(&mut self, hook_key: LifetimeHook) -> &mut Vec<TestCallback> {
+    self
+      .data
+      .get_mut(&hook_key)
+      .unwrap_or_else(|| panic!("Wrong lifetime hook partition."))
   }
 }
 

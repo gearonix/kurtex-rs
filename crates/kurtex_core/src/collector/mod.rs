@@ -63,7 +63,7 @@ impl NodeCollectorManager {
         self.has_collected = true;
         let tasks_queue = self.task_queue.clone();
 
-        self.collector_node.update_tasks(tasks_queue);
+        self.collector_node.tasks = tasks_queue;
         self.collector_node.clone()
       })
       .unwrap_or_else(|| {
