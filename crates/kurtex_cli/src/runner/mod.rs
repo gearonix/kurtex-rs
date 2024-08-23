@@ -1,28 +1,24 @@
 use std::path::PathBuf;
-use std::pin::pin;
-use std::rc::Rc;
 
-use anyhow::{Context, Error};
+use anyhow::Context;
 use clap::ArgMatches;
-use kurtex_core::error::AnyResult;
 use tokio::time;
+
+use kurtex_core::config::loader::ConfigLoader;
+use kurtex_core::runner::collector::TestRunnerConfig;
+use kurtex_core::util::tokio::run_async;
+use kurtex_core::walk::{Extensions, Walk};
+use kurtex_core::EmitRuntimeOptions;
 
 use crate::result::CliResult;
 use crate::settings;
-use kurtex_core::config::loader::ConfigLoader;
-use kurtex_core::runner::collector::{
-  EmitRuntimeOptions, FileCollector, TestRunnerConfig,
-};
-use kurtex_core::util::tokio::run_async;
-use kurtex_core::walk::{Extensions, Walk};
-use kurtex_core::RcCell;
 
 /// A trait for exposing functionality to the CLI.
 pub trait Runner {
   type Options;
 
   fn new(matches: Self::Options) -> Self;
-  fn run(self) -> AnyResult;
+  fn run(self) -> CliResult;
 }
 
 #[derive(Clone)]
@@ -57,7 +53,6 @@ impl Runner for CliRunner {
     let root_dir = root_dir.unwrap_or(current_dir);
     root_dir.join(&config_path).clone_into(&mut config_path);
 
-    let now = time::Instant::now();
     let rt = tokio::runtime::Builder::new_current_thread()
       .enable_all()
       .build()
@@ -97,9 +92,6 @@ impl Runner for CliRunner {
     });
 
     run_async(runner, Some(rt));
-
-    #[cfg(debug_assertions)]
-    println!("Elapsed time: {:?} ms", now.elapsed().as_millis());
 
     CliResult::None
   }

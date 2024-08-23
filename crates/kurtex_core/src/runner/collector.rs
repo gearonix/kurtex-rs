@@ -1,28 +1,22 @@
-use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use deno_core::error::AnyError;
-use deno_core::JsRuntime;
 use hashbrown::HashMap;
+use log::debug;
+use rayon::prelude::*;
 use rccell::RcCell;
 
 use crate::collector::context::{CollectorContext, CollectorMetadata};
 use crate::collector::structures::{
   CollectorFile, CollectorMode, CollectorNode, CollectorStatus, CollectorTask,
 };
-use crate::deno::ops::CollectorRegistryExt;
-use crate::deno::runtime::{KurtexRuntime, KurtexRuntimeOptions};
-use crate::deno::ExtensionLoader;
+use crate::deno::runtime::KurtexRuntime;
 use crate::error::AnyResult;
 use crate::reporter::{KurtexDefaultReporter, Reporter};
 use crate::walk::Walk;
-use crate::{
-  arc, arc_mut, concurrently, map_pinned_futures, EmitRuntimeOptions,
-  KurtexConfig,
-};
-use rayon::prelude::*;
+use crate::{arc, arc_mut, concurrently, map_pinned_futures, KurtexConfig};
 
 #[derive(Default, Debug)]
 pub struct TestRunnerConfig {
@@ -66,10 +60,6 @@ pub struct RunnerCollectorContext {
 }
 
 impl RunnerCollectorContext {
-  pub fn new(reporter: KurtexDefaultReporter) -> Self {
-    RunnerCollectorContext { reporter, ..RunnerCollectorContext::default() }
-  }
-
   pub fn set_ready(&mut self) {
     self.state = RunnerContextState::Ready
   }
@@ -133,7 +123,12 @@ impl FileCollector {
         };
 
         if let Some(factory) = node_factory {
-          runtime.call_v8_function(&factory).await.unwrap();
+          if let Err(e) = runtime.call_v8_function(&factory).await {
+            debug!("Got error on file {}.", 
+              collector_file.file_path.display());
+
+            collector_file.error = Some(e)
+          }
         }
         let collected_node = collector.borrow_mut().collect_node();
 
@@ -173,9 +168,11 @@ impl FileCollector {
         collector_ctx = collector_ctx.clone()
       }
     );
-    let mut context = collector_ctx.borrow_mut();
 
-    context.reporter.start();
+    {
+      let mut context = collector_ctx.borrow_mut();
+      context.reporter.start();
+    }
 
     let mut file_map: CollectorFileMap = if self.config.parallel {
       concurrently!(processed_files)
@@ -197,10 +194,11 @@ impl FileCollector {
       Self::normalize_mode_settings(fm, &meta);
     })?;
 
-    context.file_map = file_map;
-    context.set_ready();
-
-    drop(context);
+    {
+      let mut context = collector_ctx.borrow_mut();
+      context.file_map = file_map;
+      context.set_ready();
+    }
 
     Ok(collector_ctx)
   }
@@ -251,8 +249,7 @@ impl FileCollector {
 
           match task.mode {
             CollectorMode::Skip => {
-              let updated_state = CollectorStatus::Custom(CollectorMode::Skip);
-              task.status = updated_state
+              task.status = CollectorStatus::Custom(CollectorMode::Skip);
             }
             CollectorMode::Only => scoped_only_mode = true,
             _ => (),

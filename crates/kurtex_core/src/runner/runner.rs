@@ -1,16 +1,17 @@
+use std::cell::Ref;
+use std::ops::DerefMut;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use rayon::prelude::*;
 use rccell::RcCell;
-use serde::ser::Error;
 
 use crate::reporter::Reporter;
 use crate::runner::collector::{RunnerCollectorContext, TestRunnerConfig};
 use crate::runtime::KurtexRuntime;
 use crate::{
-  concurrently, map_pinned_futures, AnyResult, CollectorFile, CollectorMode,
-  CollectorNode, CollectorStatus, CollectorTask, LifetimeHook,
+  AnyResult, CollectorFile, CollectorMode, CollectorNode, CollectorStatus,
+  CollectorTask, LifetimeHook,
 };
 
 pub struct TestRunner {
@@ -22,10 +23,10 @@ pub struct TestRunner {
 trait CallbackInvoker {
   async fn invoke_lifetime_hook(
     &self,
-    node_rc: Arc<Mutex<CollectorNode>>,
+    node_rc: &CollectorNode,
     hook_key: LifetimeHook,
   ) -> AnyResult;
-  async fn invoke_task(&self, task_rc: Arc<Mutex<CollectorTask>>) -> AnyResult;
+  async fn invoke_task(&self, task_rc: &CollectorTask) -> AnyResult;
 }
 
 impl TestRunner {
@@ -39,17 +40,18 @@ impl TestRunner {
 
   pub async fn run_files(&self) {
     let mut ctx = self.context.borrow_mut();
-
     ctx.reporter.report_collected();
 
     for file in ctx.file_map.values() {
-      self.run_file(file.clone()).await;
+      self.run_file(file.clone(), &ctx).await;
     }
   }
 
-  async fn run_file(&self, file: Arc<CollectorFile>) {
-    let mut ctx = self.context.borrow_mut();
-
+  async fn run_file(
+    &self,
+    file: Arc<CollectorFile>,
+    ctx: &RunnerCollectorContext,
+  ) {
     let runnable_nodes = file
       .nodes
       .par_iter()
@@ -63,18 +65,21 @@ impl TestRunner {
       return;
     }
 
-    ctx.reporter.begin_file();
+    ctx.reporter.begin_file(file.clone());
     let mut file_nodes = file.nodes.iter();
 
     // TODO: parallel
     while let Some(node) = file_nodes.next() {
       let node = node.clone();
-      self.run_node(node).await;
+      self.run_node(node, &ctx).await;
     }
   }
 
-  async fn run_node(&self, node_rc: Arc<Mutex<CollectorNode>>) {
-    let mut ctx = self.context.borrow_mut();
+  async fn run_node(
+    &self,
+    node_rc: Arc<Mutex<CollectorNode>>,
+    ctx: &RunnerCollectorContext,
+  ) {
     ctx.reporter.begin_node(node_rc.clone());
 
     let mut node = node_rc.lock().unwrap();
@@ -88,15 +93,15 @@ impl TestRunner {
 
     let invoked_result: Result<(), anyhow::Error> = try {
       self
-        .invoke_lifetime_hook(node_rc.clone(), LifetimeHook::BeforeAll)
+        .invoke_lifetime_hook(node.deref_mut(), LifetimeHook::BeforeAll)
         .await?;
 
       for task in &node.tasks {
-        self.run_task(task.clone(), node_rc.clone()).await
+        self.run_task(task.clone(), &*node, &ctx).await
       }
 
       self
-        .invoke_lifetime_hook(node_rc.clone(), LifetimeHook::AfterAll)
+        .invoke_lifetime_hook(node.deref_mut(), LifetimeHook::AfterAll)
         .await?;
     };
 
@@ -110,9 +115,9 @@ impl TestRunner {
   async fn run_task(
     &self,
     task_rc: Arc<Mutex<CollectorTask>>,
-    parent_rc: Arc<Mutex<CollectorNode>>,
+    parent: &CollectorNode,
+    ctx: &RunnerCollectorContext,
   ) {
-    let mut ctx = self.context.borrow_mut();
     let mut task = task_rc.lock().unwrap();
 
     ctx.reporter.begin_task(task_rc.clone());
@@ -123,27 +128,38 @@ impl TestRunner {
     }
 
     let invoked_result: AnyResult = try {
-      self
-        .invoke_lifetime_hook(parent_rc.clone(), LifetimeHook::BeforeEach)
-        .await?;
-      self.invoke_task(task_rc.clone()).await?;
+      self.invoke_lifetime_hook(parent, LifetimeHook::BeforeEach).await?;
+      self.invoke_task(&*task).await?;
 
       task.status = CollectorStatus::Pass;
     };
 
     if invoked_result.is_err() {
       task.status = CollectorStatus::Fail;
+      task.error = invoked_result.err();
     }
 
-    let after_each = self
-      .invoke_lifetime_hook(parent_rc.clone(), LifetimeHook::AfterEach)
-      .await;
+    let after_each =
+      self.invoke_lifetime_hook(parent, LifetimeHook::AfterEach).await;
 
     if after_each.is_err() {
+      // TODO: handle errors here
       task.status = CollectorStatus::Fail;
     }
 
     ctx.reporter.end_task(task_rc.clone());
+  }
+
+  fn report<T, U>(&self, callback: T)
+  where
+    T: FnOnce(&dyn Reporter) -> U,
+  {
+    let ctx = self.context.borrow();
+    Ref::map(ctx, |ctx| {
+      callback(&ctx.reporter);
+
+      &ctx.reporter
+    });
   }
 }
 
@@ -151,11 +167,10 @@ impl CallbackInvoker for TestRunner {
   // TODO: arguments
   async fn invoke_lifetime_hook(
     &self,
-    node_rc: Arc<Mutex<CollectorNode>>,
+    node: &CollectorNode,
     hook_key: LifetimeHook,
   ) -> AnyResult {
     let mut rt = self.runtime.borrow_mut();
-    let mut node = node_rc.lock().unwrap();
     let hooks_partition = node.hook_manager.get_by(hook_key);
 
     for hook_fn in hooks_partition {
@@ -167,9 +182,8 @@ impl CallbackInvoker for TestRunner {
     Ok(())
   }
 
-  async fn invoke_task(&self, task_rc: Arc<Mutex<CollectorTask>>) -> AnyResult {
+  async fn invoke_task(&self, task: &CollectorTask) -> AnyResult {
     let mut rt = self.runtime.borrow_mut();
-    let mut task = task_rc.lock().unwrap();
     let task_fn = &task.callback;
 
     if let Err(e) = rt.call_v8_function(&task_fn).await {

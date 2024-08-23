@@ -45,9 +45,9 @@ pub async fn run(
     TestRunner::new(collector_ctx.clone(), config.clone(), runtime_rc.clone());
   test_runner.run_files().await;
 
-  let collector_ctx = collector_ctx.borrow_mut();
-  let reporter = &collector_ctx.reporter;
-  reporter.report_finished();
+  let context = collector_ctx.borrow_mut();
+  let reporter = &context.reporter;
+  reporter.report_finished(&context);
 
   Ok(())
 }

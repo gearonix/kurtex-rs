@@ -93,6 +93,7 @@ impl std::fmt::Debug for CollectorIdentifier {
 pub struct CollectorFile {
   pub(crate) file_path: PathBuf,
   pub(crate) collected: bool,
+  pub(crate) error: Option<AnyError>,
   pub(crate) nodes: Vec<Arc<Mutex<CollectorNode>>>,
 }
 
@@ -176,6 +177,7 @@ impl<'a> deno_core::FromV8<'a> for TestCallback {
 pub struct CollectorTask {
   pub(crate) name: String,
   pub(crate) mode: CollectorMode,
+  pub(crate) error: Option<AnyError>,
   pub(crate) status: CollectorStatus,
   pub(crate) callback: TestCallback,
 }
@@ -198,6 +200,7 @@ impl CollectorTask {
     CollectorTask {
       name,
       mode,
+      error: None,
       status: CollectorStatus::Custom(mode),
       callback,
     }
@@ -232,10 +235,10 @@ impl LifetimeHookManager {
       .unwrap_or_else(|| panic!("Wrong lifetime hook partition."));
   }
 
-  pub fn get_by(&mut self, hook_key: LifetimeHook) -> &mut Vec<TestCallback> {
+  pub fn get_by(&self, hook_key: LifetimeHook) -> &Vec<TestCallback> {
     self
       .data
-      .get_mut(&hook_key)
+      .get(&hook_key)
       .unwrap_or_else(|| panic!("Wrong lifetime hook partition."))
   }
 }

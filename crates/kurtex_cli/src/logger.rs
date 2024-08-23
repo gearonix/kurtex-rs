@@ -23,7 +23,7 @@ pub fn configure<T: AsRef<OsStr>>(env: Option<T>) {
   }
 }
 
-const LOGGER: &'static Logger = &Logger::default();
+const LOGGER: &'static Logger = &Logger;
 
 #[derive(Debug, Default)]
 struct Logger;
