@@ -77,9 +77,7 @@ impl Reporter for KurtexDefaultReporter {
       }
     };
 
-    let tasks = ctx.tasks.iter();
-
-    for task_rc in tasks {
+    for task_rc in ctx.tasks.iter() {
       let task = task_rc.lock().unwrap();
       let is_runnable =
         matches!(task.status, CollectorStatus::Pass | CollectorStatus::Fail);

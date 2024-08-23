@@ -114,12 +114,13 @@ impl std::fmt::Debug for CollectorFile {
   }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct CollectorNode {
   pub(crate) identifier: CollectorIdentifier,
   pub(crate) mode: CollectorMode,
   pub(crate) tasks: Vec<Arc<Mutex<CollectorTask>>>,
   pub(crate) status: CollectorStatus,
+  pub(crate) error: Option<AnyError>,
   pub(crate) hook_manager: LifetimeHookManager,
 }
 

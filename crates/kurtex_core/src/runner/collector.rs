@@ -124,30 +124,29 @@ impl FileCollector {
 
         if let Some(factory) = node_factory {
           if let Err(e) = runtime.call_v8_function(&factory).await {
-            debug!("Got error on file {}.", 
-              collector_file.file_path.display());
+            debug!("Got error on file {}.", collector_file.file_path.display());
 
             collector_file.error = Some(e)
           }
         }
-        let collected_node = collector.borrow_mut().collect_node();
+        let collected_node_rc = collector.borrow_mut().collect_node();
+        let collected_node = collected_node_rc.lock().unwrap();
 
-        #[rustfmt::skip]
         runtime.mutate_state_with(
           &collected_node,
-          |CollectorNode { mode, .. },
-           meta: &mut CollectorMetadata| match mode {
+          |inner_node, meta: &mut CollectorMetadata| match inner_node.mode {
             CollectorMode::Only => meta.only_mode = true,
             _ => (),
           },
         )?;
+
         let runner_tasks = collected_node.tasks.iter().map(|m| m.clone());
         collector_ctx.tasks.extend(runner_tasks);
 
-        let collected_node = arc_mut!(collected_node);
+        drop(collected_node);
 
-        collector_ctx.nodes.push(collected_node.clone());
-        collector_file.nodes.push(collected_node);
+        collector_ctx.nodes.push(collected_node_rc.clone());
+        collector_file.nodes.push(collected_node_rc);
       }
 
       collector_file.collected = true;
