@@ -1,5 +1,6 @@
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time;
+use std::{env, time};
 
 use anyhow::{anyhow, bail};
 use log::debug;
@@ -21,6 +22,21 @@ pub struct KurtexDefaultReporter {
 
 // TODO: better namings
 pub trait Reporter {
+  fn paint(&self, color: nu_ansi_term::Color, msg: String) {
+    println!("{}", color.paint(msg))
+  }
+
+  fn paint_if<T>(
+    &self,
+    failed: &Vec<T>,
+    color: nu_ansi_term::Color,
+    msg: String,
+  ) {
+    if !failed.is_empty() {
+      println!("{}", color.paint(msg))
+    }
+  }
+
   fn start(&self) {}
   fn report_collected(&mut self);
   fn report_finished(&self, ctx: &RunnerCollectorContext);
@@ -30,6 +46,8 @@ pub trait Reporter {
   fn end_node(&self, node: Arc<Mutex<CollectorNode>>) {}
   fn begin_task(&self, task: Arc<Mutex<CollectorTask>>) {}
   fn end_task(&self, task: Arc<Mutex<CollectorTask>>) {}
+  fn watcher_started(&self, ctx: &RunnerCollectorContext) {}
+  fn watcher_rerun(&self, file: PathBuf) {}
 }
 
 impl KurtexDefaultReporter {
@@ -51,7 +69,6 @@ impl Reporter for KurtexDefaultReporter {
     let end_time = self.start_time.elapsed();
     let milliseconds = end_time.as_micros() as f64 / 1_000.0;
 
-    // TODO: onFinished
     debug!("Reporter: finished with {}.", end_time.as_millis());
     println!();
 
@@ -66,16 +83,6 @@ impl Reporter for KurtexDefaultReporter {
     let mut runnable = task_vec![];
     let mut skipped = task_vec![];
     let mut todo = task_vec![];
-
-    fn paint(color: nu_ansi_term::Color, msg: String) {
-      println!("{}", color.paint(msg))
-    };
-
-    fn paint_if<T>(failed: &Vec<T>, color: nu_ansi_term::Color, msg: String) {
-      if !failed.is_empty() {
-        println!("{}", color.paint(msg))
-      }
-    };
 
     for task_rc in ctx.tasks.iter() {
       let task = task_rc.lock().unwrap();
@@ -109,8 +116,7 @@ impl Reporter for KurtexDefaultReporter {
           let file_path = file.file_path.display().to_string();
           let error = file.error.as_ref().map(|e| e.to_string());
 
-          println!();
-          paint(Red, format!("{}", file_path));
+          self.paint(Red, format!("\n {}", file_path));
           eprintln!("{}", error.unwrap());
           println!();
         });
@@ -130,8 +136,7 @@ impl Reporter for KurtexDefaultReporter {
           let bold_red = Style::new().bold().on(Red);
           let fail_mark = format!(" {} ", bold_red.paint("FAIL"));
 
-          println!();
-          println!("{} {}", fail_mark, task.name);
+          println!("\n {} {}", fail_mark, task.name);
           eprintln!("{}", error.unwrap());
           println!();
         });
@@ -141,25 +146,51 @@ impl Reporter for KurtexDefaultReporter {
     print_failed_files();
     print_failed_tasks();
 
-    paint_if(
+    self.paint_if(
       &failed_files,
       White,
       format!("Failed to parse {} files", failed_files.len()),
     );
 
-    paint_if(
+    self.paint_if(
       &failed,
       Red,
       format!("Failed {} / {}", failed.len(), runnable.len()),
     );
 
-    paint(LightGreen, format!("Passed {} / {}", passed.len(), runnable.len()));
+    self.paint(
+      LightGreen,
+      format!("Passed {} / {}", passed.len(), runnable.len()),
+    );
 
-    paint_if(&skipped, LightYellow, format!("Skipped  {}", skipped.len()));
+    self.paint_if(&skipped, LightYellow, format!("Skipped  {}", skipped.len()));
 
-    paint_if(&todo, White, format!("Todo  {} ", todo.len()));
+    self.paint_if(&todo, White, format!("Todo  {} ", todo.len()));
 
     println!("Time {}ms", milliseconds);
+  }
+
+  fn watcher_started(&self, ctx: &RunnerCollectorContext) {
+    let has_failed = ctx.tasks.iter().any(|task| {
+      let task = task.lock().unwrap();
+      task.status == CollectorStatus::Fail
+    });
+
+    if has_failed {
+      self
+        .paint(Red, "\n Tests failed. Watching for file changes...".to_string())
+    } else {
+      self.paint(LightGreen, "\n Watching for file changes...".to_string())
+    }
+  }
+
+  fn watcher_rerun(&self, file: PathBuf) {
+    let path = file.strip_prefix(env::current_dir().unwrap()).unwrap();
+
+    self.paint(
+      LightGreen,
+      format!("File {} changed, re-running tests...", path.display()),
+    );
   }
 }
 

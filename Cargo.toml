@@ -13,7 +13,7 @@ repository = "https://github.com/kurtexdev/kurtex"
 deno_ast = { version = "0.41.2", features = ["transpiling"] }
 deno_core = { version = "0.303.0" }
 reqwest = { version = "0.12.5" }
-tokio = { version = "1.39.2", features = ["full"] }
+tokio = { version = "1.39.2", features = ["full", "tracing"] }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = { version = "1.0.121" }
 rccell = "0.1.3"

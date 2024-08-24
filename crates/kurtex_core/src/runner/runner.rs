@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 use rccell::RcCell;
 
-use crate::reporter::Reporter;
+use crate::reporter::{KurtexDefaultReporter, Reporter};
 use crate::runner::collector::{RunnerCollectorContext, TestRunnerConfig};
 use crate::runtime::KurtexRuntime;
 use crate::{
@@ -152,7 +152,7 @@ impl TestRunner {
 
   fn report<T, U>(&self, callback: T)
   where
-    T: FnOnce(&dyn Reporter) -> U,
+    T: FnOnce(&KurtexDefaultReporter) -> U,
   {
     let ctx = self.context.borrow();
     Ref::map(ctx, |ctx| {

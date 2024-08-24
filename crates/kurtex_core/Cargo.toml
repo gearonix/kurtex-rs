@@ -26,3 +26,4 @@ nu-ansi-term.workspace = true
 
 # Local dependencies
 kurtex_binding = { path = "../kurtex_binding" }
+notify = "6.1.1"

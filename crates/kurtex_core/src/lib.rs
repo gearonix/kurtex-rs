@@ -8,7 +8,7 @@ pub mod error;
 pub mod runner;
 pub mod util;
 pub mod walk;
-mod reporter;
+pub mod watcher;
 
 pub use crate::collector::*;
 pub use crate::config::loader::*;

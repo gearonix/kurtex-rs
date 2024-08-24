@@ -15,5 +15,7 @@ rustflags = [
     "-Aclippy::default_constructed_unit_structs",
     "-C", "symbol-mangling-version=v0",
     "-Awarnings",
-    "-Anotes"
+    "-Anotes",
+    "--cfg",
+    "tokio_unstable"
 ]

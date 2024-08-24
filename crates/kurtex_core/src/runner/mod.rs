@@ -8,16 +8,16 @@ use crate::reporter::Reporter;
 use crate::runner::collector::{FileCollector, TestRunnerConfig};
 use crate::runner::runner::TestRunner;
 use crate::runtime::{KurtexRuntime, KurtexRuntimeOptions};
-use crate::AnyResult;
+use crate::{watcher, AnyResult};
 
 pub mod collector;
+pub mod reporter;
 pub mod runner;
 
 #[derive(Default, Debug)]
 pub struct EmitRuntimeOptions {
   pub runtime_snapshot: &'static [u8],
 }
-
 impl EmitRuntimeOptions {
   pub fn new_from_snapshot(runtime_snapshot: &'static [u8]) -> Self {
     EmitRuntimeOptions { runtime_snapshot }
@@ -48,6 +48,11 @@ pub async fn run(
   let context = collector_ctx.borrow_mut();
   let reporter = &context.reporter;
   reporter.report_finished(&context);
+
+  if (config.watch) {
+    reporter.watcher_started(&context);
+    watcher::start_watcher(&context).await?;
+  }
 
   Ok(())
 }
