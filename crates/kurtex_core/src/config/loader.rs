@@ -33,6 +33,8 @@ pub struct KurtexConfig {
   #[serde(default)]
   pub excludes: Vec<String>,
 
+  //  TODO: 
+  // https://docs.rs/either/1.10.0/either/serde_untagged/index.html
   #[serde(default)]
   pub watch: Option<bool>,
 

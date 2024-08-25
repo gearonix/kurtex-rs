@@ -51,7 +51,7 @@ pub async fn run(
 
   if (config.watch) {
     reporter.watcher_started(&context);
-    watcher::start_watcher(&context).await?;
+    watcher::start_watcher(&context, config.clone()).await?;
   }
 
   Ok(())

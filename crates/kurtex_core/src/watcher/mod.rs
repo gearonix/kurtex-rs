@@ -1,26 +1,27 @@
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::time::Duration;
 use std::{env, future};
 
 use deno_core::futures::channel::mpsc;
-use deno_core::futures::StreamExt;
+use deno_core::futures::{SinkExt, StreamExt};
 use notify::{INotifyWatcher, RecursiveMode, Watcher};
 
-use crate::runner::collector::RunnerCollectorContext;
-use crate::watcher::debouncer::{
-  AsyncWatcherDebouncer, DebounceEventResult, DEBOUNCER_CHANNEL_BUFFER,
+use crate::runner::collector::{RunnerCollectorContext, TestRunnerConfig};
+use crate::watcher::watcher::{
+  AsyncWatcherDebouncer, DebounceEventResult, InnerEvent,
+  DEBOUNCER_CHANNEL_BUFFER,
 };
 use crate::AnyResult;
 
-pub mod debouncer;
+pub mod resolver;
+pub mod watcher;
 
-#[derive(Debug, Clone)]
-pub struct ChangedFile {
-  paths: Vec<PathBuf>,
-}
-
+// TODO: improve watcher options,
+// custom folder scope selection
 pub async fn start_watcher(
-  collector_ctx: &RunnerCollectorContext,
+  _collector_ctx: &RunnerCollectorContext,
+  _config: Rc<TestRunnerConfig>,
 ) -> AnyResult {
   let root_dir = env::current_dir().unwrap();
 
@@ -30,16 +31,19 @@ pub async fn start_watcher(
 }
 
 async fn watch_test_files<P: AsRef<Path>>(path: P) -> AnyResult {
-  let (mut debouncer, outer_rx) = init_watcher()?;
+  let path = path.as_ref();
+  let (mut watcher, outer_rx) = init_watcher()?;
 
-  debouncer.watcher.watch(path.as_ref(), RecursiveMode::Recursive)?;
+  watcher.watch(path);
 
   outer_rx
     .for_each(|debounce_result| {
-      println!("debounce_result: {:?}", debounce_result);
       match debounce_result {
         Ok(events) => events.iter().for_each(|ev| println!("{:?}", ev)),
-        Err(e) => println!("e: {:?}", e),
+        Err(err) => {
+          eprintln!("Watcher: error while processing events {:?}", err);
+          watcher.close();
+        }
       }
 
       future::ready(())
@@ -54,10 +58,10 @@ fn init_watcher(
   let (outer_tx, outer_rx) =
     mpsc::channel::<DebounceEventResult>(DEBOUNCER_CHANNEL_BUFFER);
 
-  let mut debouncer = AsyncWatcherDebouncer::<INotifyWatcher>::new(
+  let mut watcher = AsyncWatcherDebouncer::<INotifyWatcher>::new(
     Duration::from_millis(1500),
     outer_tx,
-  )?;
+  );
 
-  Ok((debouncer, outer_rx))
-} 
+  Ok((watcher, outer_rx))
+}

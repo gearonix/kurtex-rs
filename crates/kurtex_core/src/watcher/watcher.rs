@@ -1,7 +1,5 @@
-use std::fmt::Error;
-use std::future::Future;
-use std::path::PathBuf;
-use std::pin::Pin;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+use std::path::{Path, PathBuf};
 use std::time;
 
 use anyhow::anyhow;
@@ -10,8 +8,7 @@ use deno_core::futures::channel::mpsc;
 use deno_core::futures::channel::mpsc::channel;
 use deno_core::futures::SinkExt;
 use hashbrown::HashMap;
-use notify::{EventKind, INotifyWatcher, Watcher};
-use tokio::time::error::Elapsed;
+use notify::{EventKind, INotifyWatcher, RecursiveMode, Watcher};
 use tokio::time::timeout as recv_timeout;
 use tokio_stream::StreamExt;
 
@@ -186,10 +183,9 @@ impl DebounceEventHandler for mpsc::Sender<DebounceEventResult> {
   }
 }
 
-#[derive(Debug)]
 pub struct AsyncWatcherDebouncer<T: Watcher = INotifyWatcher> {
   pub(crate) watcher: T,
-  pub(crate) stop_channel: mpsc::Sender<InnerEvent>,
+  inner_tx: mpsc::Sender<InnerEvent>,
 }
 
 #[derive(Debug)]
@@ -199,7 +195,15 @@ pub enum InnerEvent {
 }
 
 impl<T: Watcher> AsyncWatcherDebouncer<T> {
-  pub fn new<F>(
+  pub fn new<F>(timeout: time::Duration, mut event_handler: F) -> Self
+  where
+    F: DebounceEventHandler,
+    T: notify::Watcher,
+  {
+    Self::new_inner(timeout, event_handler).unwrap()
+  }
+
+  fn new_inner<F>(
     timeout: time::Duration,
     mut event_handler: F,
   ) -> AnyResult<AsyncWatcherDebouncer<T>>
@@ -208,23 +212,25 @@ impl<T: Watcher> AsyncWatcherDebouncer<T> {
     T: notify::Watcher,
   {
     let debouncer_config = DebouncerConfig::new(timeout);
-    let (inner_tx, mut inner_rx) =
+    let (mut inner_tx, mut inner_rx) =
       channel::<InnerEvent>(DEBOUNCER_CHANNEL_BUFFER);
 
     deno_core::unsync::spawn(async move {
       let mut debouncer = DebouncerDataInner::new(timeout);
+
       'outer: loop {
         match debouncer.next_tick() {
           Some(timeout) => {
-            let stuff = recv_timeout(timeout, inner_rx.next()).await;
-            match stuff {
+            let timeout_result = recv_timeout(timeout, inner_rx.next()).await;
+
+            match timeout_result {
               Ok(Some(InnerEvent::NotifyEvent(ev))) => match ev {
                 Ok(ev) => debouncer.register_event(ev),
                 Err(e) => event_handler.send_event(Err(e)).await,
               },
+              Ok(Some(InnerEvent::Shutdown)) => break 'outer,
               Err(e) => {
-                let stuff = std::io::Error::from(e);
-                if let std::io::ErrorKind::TimedOut = stuff.kind() {
+                if let IoErrorKind::TimedOut = IoError::from(e).kind() {
                   let send_data = debouncer.extract_debounced_events();
 
                   if !send_data.is_empty() {
@@ -232,7 +238,6 @@ impl<T: Watcher> AsyncWatcherDebouncer<T> {
                   }
                 }
               }
-              Ok(Some(InnerEvent::Shutdown)) => break 'outer,
               _ => unreachable!(),
             }
           }
@@ -253,9 +258,9 @@ impl<T: Watcher> AsyncWatcherDebouncer<T> {
       move |event: Result<notify::Event, notify::Error>| {
         futures::executor::block_on(async {
           let _ = inner_tx_c
-            .send(InnerEvent::NotifyEvent(
-              event.map_err(|_e| anyhow!("Notify internal error occurred.")),
-            ))
+            .send(InnerEvent::NotifyEvent(event.map_err(|e| {
+              anyhow!("Notify internal error occurred. {}", e.to_string())
+            })))
             .await
             .unwrap();
         });
@@ -263,8 +268,18 @@ impl<T: Watcher> AsyncWatcherDebouncer<T> {
       debouncer_config.inner,
     )?;
 
-    let guard = AsyncWatcherDebouncer { watcher, stop_channel: inner_tx };
+    let guard = AsyncWatcherDebouncer { watcher, inner_tx };
 
     Ok(guard)
+  }
+
+  pub fn close(&mut self) {
+    futures::executor::block_on(async {
+      let _ = self.inner_tx.send(InnerEvent::Shutdown).await.unwrap();
+    });
+  }
+
+  pub fn watch(&mut self, path: &Path) {
+    self.watcher.watch(path, RecursiveMode::Recursive).unwrap();
   }
 }

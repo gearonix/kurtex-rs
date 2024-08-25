@@ -57,9 +57,6 @@ macro_rules! map_pinned_futures {
     }};
 }
 
-pub use concurrently;
-pub use map_pinned_futures;
-
 pub async fn run_concurrently<T, O>(handles: impl Iterator<Item = T>) -> Vec<O>
 where
   T: FnOnce() -> Pin<Box<dyn Future<Output = Result<O, AnyError>>>>,
@@ -125,3 +122,6 @@ pub fn run_async<R>(
   drop(tx);
   _ = timeout.join();
 }
+
+pub use concurrently;
+pub use map_pinned_futures;
