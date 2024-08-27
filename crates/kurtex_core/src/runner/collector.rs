@@ -74,6 +74,10 @@ pub struct FileCollector {
   runtime: RcCell<KurtexRuntime>,
 }
 
+pub struct FileCollectorOptions {
+  pub(crate) paths: Vec<PathBuf>,
+}
+
 impl FileCollector {
   pub fn new(
     config: Rc<TestRunnerConfig>,
@@ -158,7 +162,7 @@ impl FileCollector {
     let collector_ctx = RcCell::new(RunnerCollectorContext::default());
 
     let processed_files = map_pinned_futures!(
-      Self::collect_test_files(&self.config)?,
+      Self::collect_test_files(&self.config),
       process_test_file(runtime, collector_ctx),
       {
         runtime = self.runtime.clone()
@@ -200,19 +204,18 @@ impl FileCollector {
     Ok(collector_ctx)
   }
 
-  fn collect_test_files(
-    opts: &TestRunnerConfig,
-  ) -> Result<impl Iterator<Item = PathBuf>, AnyError> {
+  fn collect_test_files(opts: &TestRunnerConfig) -> Vec<PathBuf> {
     let TestRunnerConfig { root_dir, includes, excludes, .. } = opts;
-
     let included_cases = Walk::new(&includes, root_dir).build();
     let mut excluded_cases = Walk::new(&excludes, root_dir).build();
 
     // TODO: rewrite: **/node_modules/**, parallel
     // TODO: build times
-    Ok(included_cases.filter(move |included_path| {
-      !excluded_cases.any(|excluded_path| excluded_path.eq(included_path))
-    }))
+    included_cases
+      .filter(move |included_path| {
+        !excluded_cases.any(|excluded_path| excluded_path.eq(included_path))
+      })
+      .collect()
   }
 
   fn normalize_mode_settings(

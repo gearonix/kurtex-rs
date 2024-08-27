@@ -81,12 +81,13 @@ impl Runner for CliRunner {
 
     let runner = Box::pin(async move {
       let config_file = config_loader.load().await.unwrap();
+      let runtime_snapshot = settings::RUNTIME_SNAPSHOT;
 
       runner_config.adjust_config_file(config_file);
 
       kurtex_core::runner::run(
         runner_config,
-        EmitRuntimeOptions::new_from_snapshot(settings::RUNTIME_SNAPSHOT),
+        EmitRuntimeOptions { runtime_snapshot },
       )
       .await
     });

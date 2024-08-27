@@ -1,5 +1,2 @@
 packages:
-  - docs
   - packages/*
-  - examples/*
-  - dev

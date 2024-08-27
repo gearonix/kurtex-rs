@@ -42,12 +42,6 @@ importers:
         specifier: ^1.3.1
         version: 1.6.0(@types/node@20.14.13)
 
-  dev:
-    dependencies:
-      '@kurtex/core':
-        specifier: workspace:^
-        version: link:../packages/kurtex
-
   packages/kurtex: {}
 
 packages:

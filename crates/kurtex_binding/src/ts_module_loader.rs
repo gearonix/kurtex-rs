@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use deno_ast::{
-  EmitOptions, ImportsNotUsedAsValues, MediaType, ParseParams, SourceMapOption,
-  TranspileOptions,
+  EmitOptions, ImportsNotUsedAsValues, MediaType, ParseParams,
+  SourceMapOption, TranspileOptions,
 };
 use deno_core::{
   ModuleLoadResponse, ModuleSource, ModuleSourceCode, ModuleSpecifier,
@@ -72,7 +72,9 @@ impl deno_core::ModuleLoader for TypescriptModuleLoader {
       let media_type = MediaType::from_path(&module_path);
       let source_code = std::fs::read_to_string(&module_path.as_path())
         .with_context(|| {
-          format!("Trying to load {module_path:?} for {module_specifier}")
+          format!(
+            "Trying to load {module_path:?} for {module_specifier}"
+          )
         })?;
 
       let source_code_ = source_code.clone();
@@ -107,7 +109,8 @@ impl deno_core::ModuleLoader for TypescriptModuleLoader {
           .transpile(
             &TranspileOptions {
               // preserve imports to build correct module graph.
-              imports_not_used_as_values: ImportsNotUsedAsValues::Preserve,
+              imports_not_used_as_values:
+                ImportsNotUsedAsValues::Preserve,
               ..TranspileOptions::default()
             },
             &EmitOptions {
@@ -118,7 +121,9 @@ impl deno_core::ModuleLoader for TypescriptModuleLoader {
           )?
           .into_source();
         let cm = source_data.source_map.unwrap();
-        source_maps.borrow_mut().insert(module_specifier.to_string(), cm);
+        source_maps
+          .borrow_mut()
+          .insert(module_specifier.to_string(), cm);
 
         String::from_utf8(source_data.source)?
       } else {
@@ -147,7 +152,9 @@ impl deno_core::ModuleLoader for TypescriptModuleLoader {
   }
 }
 
-pub fn get_module_type_from_path(module_path: &PathBuf) -> (ModuleType, bool) {
+pub fn get_module_type_from_path(
+  module_path: &PathBuf,
+) -> (ModuleType, bool) {
   let media_type = MediaType::from_path(module_path);
 
   match &media_type {

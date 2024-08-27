@@ -1,16 +1,18 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
 use std::{env, future};
 
 use deno_core::futures::channel::mpsc;
 use deno_core::futures::{SinkExt, StreamExt};
-use notify::{INotifyWatcher, RecursiveMode, Watcher};
+use deno_graph::{ModuleGraph, ModuleSpecifier};
+use notify::{INotifyWatcher, Watcher};
 
+use crate::reporter::Reporter;
 use crate::runner::collector::{RunnerCollectorContext, TestRunnerConfig};
 use crate::watcher::resolver::WatcherResolver;
 use crate::watcher::watcher::{
-  AsyncWatcherDebouncer, DebounceEventResult, DebouncedEventKind, InnerEvent,
+  AsyncWatcherDebouncer, DebounceEventResult, DebouncedEventKind,
   DEBOUNCER_CHANNEL_BUFFER,
 };
 use crate::AnyResult;
@@ -18,15 +20,16 @@ use crate::AnyResult;
 pub mod resolver;
 pub mod watcher;
 
-// TODO: improve watcher options,
+// TODO: improve watcher options (according to graph),
 // custom folder scope selection
 pub async fn start_watcher(
   collector_ctx: &RunnerCollectorContext,
   _config: Rc<TestRunnerConfig>,
+  module_graph: Rc<ModuleGraph>,
 ) -> AnyResult {
   let root_dir = env::current_dir().unwrap();
 
-  watch_test_files(root_dir, &collector_ctx).await?;
+  watch_test_files(root_dir, &collector_ctx, module_graph).await?;
 
   Ok(())
 }
@@ -34,10 +37,11 @@ pub async fn start_watcher(
 async fn watch_test_files<P: AsRef<Path>>(
   path: P,
   ctx: &RunnerCollectorContext,
+  module_graph: Rc<ModuleGraph>,
 ) -> AnyResult {
   let path = path.as_ref();
   let (mut watcher, outer_rx) = init_watcher()?;
-  // let mut resolver = WatcherResolver::default();
+  let mut resolver = WatcherResolver::new(module_graph);
 
   watcher.watch(path);
 
@@ -46,7 +50,12 @@ async fn watch_test_files<P: AsRef<Path>>(
       match debounce_result {
         Ok(events) => events.iter().for_each(|ev| {
           if ev.kind == DebouncedEventKind::Update {
-            // resolver.resolve_file(ev.path.clone(), &ctx);
+            let path = ev.path.clone();
+
+            let changed_files = resolver.resolve_dependency_tests(path.clone());
+            ctx.reporter.watcher_rerun(&changed_files, path);
+            
+            
           }
         }),
         Err(err) => {

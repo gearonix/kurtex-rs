@@ -246,9 +246,9 @@ impl KurtexGraph {
     self.roots.push(specifier)
   }
 
-  pub async fn build(&self) -> AnyResult<ModuleGraph> {
+  pub async fn build(&self) -> AnyResult<Rc<ModuleGraph>> {
     let mut built = self.built.borrow_mut();
-    
+
     if *built {
       return Err(anyhow!("The module graph has already been built."));
     }
@@ -273,6 +273,6 @@ impl KurtexGraph {
       .unwrap();
 
     *built = true;
-    Ok(graph)
+    Ok(Rc::new(graph))
   }
 }

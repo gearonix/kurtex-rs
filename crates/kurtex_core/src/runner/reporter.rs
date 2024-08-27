@@ -17,21 +17,14 @@ use crate::{
 
 pub struct KurtexDefaultReporter {
   start_time: time::Instant,
-  // context: RcCell<RunnerCollectorContext>,
 }
 
-// TODO: better namings
 pub trait Reporter {
-  fn paint(&self, color: nu_ansi_term::Color, msg: String) {
+  fn paint(&self, color: Color, msg: String) {
     println!("{}", color.paint(msg))
   }
 
-  fn paint_if<T>(
-    &self,
-    failed: &Vec<T>,
-    color: nu_ansi_term::Color,
-    msg: String,
-  ) {
+  fn paint_if<T>(&self, failed: &Vec<T>, color: Color, msg: String) {
     if !failed.is_empty() {
       println!("{}", color.paint(msg))
     }
@@ -47,7 +40,7 @@ pub trait Reporter {
   fn begin_task(&self, task: Arc<Mutex<CollectorTask>>) {}
   fn end_task(&self, task: Arc<Mutex<CollectorTask>>) {}
   fn watcher_started(&self, ctx: &RunnerCollectorContext) {}
-  fn watcher_rerun(&self, file: PathBuf) {}
+  fn watcher_rerun(&self, files: &Vec<PathBuf>, file: PathBuf) {}
 }
 
 impl KurtexDefaultReporter {
@@ -184,8 +177,8 @@ impl Reporter for KurtexDefaultReporter {
     }
   }
 
-  fn watcher_rerun(&self, file: PathBuf) {
-    let path = file.strip_prefix(env::current_dir().unwrap()).unwrap();
+  fn watcher_rerun(&self, files: &Vec<PathBuf>, trigger: PathBuf) {
+    let path = trigger.strip_prefix(env::current_dir().unwrap()).unwrap();
 
     self.paint(
       LightGreen,

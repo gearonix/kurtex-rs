@@ -39,7 +39,7 @@ impl TestRunner {
     TestRunner { context, config, runtime }
   }
 
-  pub async fn run_files(&self) -> AnyResult<ModuleGraph> {
+  pub async fn run_files(&self) -> AnyResult<Rc<ModuleGraph>> {
     let mut ctx = self.context.borrow_mut();
     ctx.reporter.report_collected();
 
