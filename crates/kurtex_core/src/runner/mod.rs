@@ -1,24 +1,15 @@
-use std::path::PathBuf;
 use std::rc::Rc;
 
-use deno_ast::ModuleSpecifier;
-use deno_core::ModuleType;
-use deno_graph::source::MemoryLoader;
 use rayon::prelude::*;
 use rccell::RcCell;
 
-use kurtex_binding::ts_module_loader::{
-  get_content_type_header, get_module_type_from_path,
-};
-
+use crate::{AnyResult, watcher};
 use crate::deno::ExtensionLoader;
 use crate::ops::CollectorRegistryExt;
 use crate::reporter::Reporter;
 use crate::runner::collector::{FileCollector, TestRunnerConfig};
 use crate::runner::runner::TestRunner;
 use crate::runtime::{KurtexRuntime, KurtexRuntimeOptions};
-use crate::walk::Walk;
-use crate::{watcher, AnyResult};
 
 pub mod collector;
 pub mod reporter;
@@ -52,30 +43,11 @@ pub async fn run(
 
   let file_collector = FileCollector::new(config.clone(), runtime_rc.clone());
   let collector_ctx = file_collector.run().await.unwrap();
-
   let test_runner =
     TestRunner::new(collector_ctx.clone(), config.clone(), runtime_rc.clone());
-  test_runner.run_files().await;
-
-  let config_c = config.clone();
-  let runtime_c = runtime_rc.clone();
-
-  // SPAWN START
-  let runtime_root = config_c.root_dir.join("dev/src/main.ts");
-  let mut runtime = runtime_c.borrow_mut();
-
-  // TODO: temporary
-  // TODO: additional files
-  let mut source_paths = config_c.includes.clone();
-  source_paths.extend(["src/**".to_string()]);
-
-  let _ = runtime.process_esm_file(runtime_root.to_string_lossy(), true).await;
-
-  let graph = runtime.build_graph().await.unwrap();
-
-  println!("{:#?}", graph);
-
-  // SPAWN END
+  
+  let module_graph = test_runner.run_files().await?;
+  println!("{:#?}", module_graph);
 
   let context = collector_ctx.borrow_mut();
   let reporter = &context.reporter;

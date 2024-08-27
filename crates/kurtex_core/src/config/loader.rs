@@ -115,7 +115,7 @@ impl ConfigLoader {
   async fn parse_esm_file(&self) -> AnyResult<KurtexConfig> {
     let mut runtime = KurtexRuntime::new(KurtexRuntimeOptions::default());
 
-    let module_id = runtime.process_esm_file(&self.config_path, false).await?;
+    let module_id = runtime.resolve_module(&self.config_path).await?;
     let (exports, scope) = runtime
       .get_module_exports::<v8::Local<v8::Object>, &str>(module_id, None)
       .await?;

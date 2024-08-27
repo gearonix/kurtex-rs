@@ -95,12 +95,9 @@ impl FileCollector {
           *ctx = Default::default();
         })?;
 
-
         #[allow(unused)]
-        let module_id = runtime
-          .process_esm_file(file_path.display().to_string(), false)
-          .await
-          .unwrap();
+        let module_id =
+          runtime.resolve_test_module(file_path.display().to_string()).await?;
 
         runtime.get_state(|ctx: &CollectorContext| ctx.acquire_collectors())?
       };

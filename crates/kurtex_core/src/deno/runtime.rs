@@ -1,31 +1,25 @@
-use anyhow::{anyhow, bail};
-use deno_ast::ModuleSpecifier;
-use std::cell::{Ref, RefCell};
-use std::convert::From;
-use std::env;
+use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
-use std::path::PathBuf;
 use std::rc::Rc;
 
+use anyhow::{anyhow, bail};
+use deno_ast::ModuleSpecifier;
 use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
-use deno_core::{
-  futures, v8, CrossIsolateStore, ModuleId, ModuleResolutionError,
-  PollEventLoopOptions,
-};
+use deno_core::{v8, CrossIsolateStore, ModuleId, PollEventLoopOptions};
 use deno_graph::{GraphKind, ModuleGraph, WalkOptions};
+use rccell::RcCell;
 use serde::{Deserialize, Serialize};
 
-use crate::AnyResult;
 use kurtex_binding::ts_module_loader::TypescriptModuleLoader;
 
 use crate::deno::ExtensionLoader;
+use crate::AnyResult;
 
 pub struct KurtexRuntime {
   runtime: deno_core::JsRuntime,
-  roots: Vec<deno_core::ModuleSpecifier>,
-  loader: Rc<TypescriptModuleLoader>,
+  pub(crate) graph: KurtexGraph,
 }
 
 #[derive(Default)]
@@ -53,42 +47,64 @@ impl KurtexRuntime {
       shared_array_buffer_store: Some(CrossIsolateStore::default()),
       ..Default::default()
     });
+    let graph = KurtexGraph::new(module_loader.clone());
 
-    Self {
-      runtime: deno_runtime,
-      loader: module_loader,
-      roots: Default::default(),
-    }
+    Self { runtime: deno_runtime, graph }
   }
 
-  pub async fn process_esm_file<S>(
+  pub async fn resolve_module<S>(&mut self, file_path: S) -> AnyResult<ModuleId>
+  where
+    S: AsRef<str>,
+  {
+    self.resolve_module_inner(file_path, false).await
+  }
+
+  pub async fn resolve_main_module<S>(
     &mut self,
     file_path: S,
+  ) -> AnyResult<ModuleId>
+  where
+    S: AsRef<str>,
+  {
+    self.resolve_module_inner(file_path, true).await
+  }
+
+  pub async fn resolve_module_inner<S>(
+    &mut self,
+    file_path: S,
+    // TODO: rewrite
     is_main: bool,
-  ) -> Result<ModuleId, AnyError>
+  ) -> AnyResult<ModuleId>
   where
     S: AsRef<str>,
   {
     let file_path = file_path.as_ref();
 
-    if is_main {
-      let file_path = PathBuf::from(file_path);
-      let module_specifier = ModuleSpecifier::from_file_path(&file_path);
-
-      match module_specifier {
-        Ok(specifier) => self.roots.push(specifier),
-        Err(_) => {
-          bail!("Invalid module path: {}", file_path.display())
-        }
-      }
-    }
-
-    let module_id = self.resolve_module_id(file_path, is_main).await?;
-
+    let module_id = self.load_es_module(file_path, is_main).await?;
     self.runtime.mod_evaluate(module_id).await?;
     self.runtime.run_event_loop(Default::default()).await?;
 
     Ok(module_id)
+  }
+
+  pub async fn resolve_test_module<S>(
+    &mut self,
+    file_path: S,
+  ) -> AnyResult<ModuleId>
+  where
+    S: AsRef<str>,
+  {
+    let file_path_ = file_path.as_ref();
+    let module_specifier = ModuleSpecifier::from_file_path(&file_path_);
+
+    match module_specifier {
+      Ok(specifier) => self.graph.add_root(specifier),
+      Err(_) => {
+        bail!("Invalid module path: {}", file_path_)
+      }
+    }
+
+    Ok(self.resolve_module(file_path).await?)
   }
 
   pub async fn get_module_exports<'a, R, S>(
@@ -178,19 +194,13 @@ impl KurtexRuntime {
     Ok(getter(generic_state))
   }
 
-  async fn resolve_module_id(
+  async fn load_es_module(
     &mut self,
     file_path: &str,
     is_main: bool,
-  ) -> Result<ModuleId, AnyError> {
-    // NOTE: remove current_dir
-    let module_specifier = env::current_dir()
-      .map_err(AnyError::from)
-      .and_then(|current_dir| {
-        deno_core::resolve_path(file_path, current_dir.as_path())
-          .map_err(AnyError::from)
-      })
-      .unwrap();
+  ) -> AnyResult<ModuleId> {
+    let module_specifier = ModuleSpecifier::from_file_path(&file_path)
+      .map_err(|_e| anyhow!("Invalid module path: {}", file_path))?;
 
     if is_main {
       self.runtime.load_main_es_module(&module_specifier).await
@@ -219,11 +229,33 @@ impl KurtexRuntime {
   {
     Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
   }
+}
 
-  pub async fn build_graph(&self) -> AnyResult<ModuleGraph> {
-    let roots = self.roots.clone();
-    let loader = self.loader.graph_loader().borrow();
-    let mut graph = ModuleGraph::new(GraphKind::CodeOnly);
+pub struct KurtexGraph {
+  roots: Vec<deno_core::ModuleSpecifier>,
+  module_loader: Rc<TypescriptModuleLoader>,
+  built: RcCell<bool>,
+}
+
+impl KurtexGraph {
+  pub fn new(module_loader: Rc<TypescriptModuleLoader>) -> Self {
+    KurtexGraph { roots: vec![], module_loader, built: Default::default() }
+  }
+
+  fn add_root(&mut self, specifier: ModuleSpecifier) {
+    self.roots.push(specifier)
+  }
+
+  pub async fn build(&self) -> AnyResult<ModuleGraph> {
+    let mut built = self.built.borrow_mut();
+    
+    if *built {
+      return Err(anyhow!("The module graph has already been built."));
+    }
+
+    let mut roots = self.roots.clone();
+    let loader = self.module_loader.graph_loader().borrow();
+    let mut graph = ModuleGraph::new(GraphKind::All);
 
     graph.build(roots.clone(), loader.deref(), Default::default()).await;
 
@@ -237,8 +269,10 @@ impl KurtexRuntime {
           prefer_fast_check_graph: false,
         },
       )
-      .validate()?;
+      .validate()
+      .unwrap();
 
+    *built = true;
     Ok(graph)
   }
 }

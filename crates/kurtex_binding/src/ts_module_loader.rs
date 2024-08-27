@@ -1,12 +1,12 @@
 use std::borrow::Cow;
-use std::future::Future;
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Error};
-use deno_ast::{EmitOptions, MediaType, ParseParams, SourceMapOption};
-use deno_core::futures::FutureExt;
+use anyhow::Context;
+use deno_ast::{
+  EmitOptions, ImportsNotUsedAsValues, MediaType, ParseParams, SourceMapOption,
+  TranspileOptions,
+};
 use deno_core::{
   ModuleLoadResponse, ModuleSource, ModuleSourceCode, ModuleSpecifier,
   ModuleType, RequestedModuleType,
@@ -50,16 +50,13 @@ impl deno_core::ModuleLoader for TypescriptModuleLoader {
   fn load(
     &self,
     module_specifier: &ModuleSpecifier,
-    maybe_referrer: Option<&ModuleSpecifier>,
+    _maybe_referrer: Option<&ModuleSpecifier>,
     _is_dyn_import: bool,
     _requested_module_type: deno_core::RequestedModuleType,
   ) -> ModuleLoadResponse {
     let mut graph_loader = self.graph_loader.borrow_mut();
     let source_maps = self.source_maps.clone();
     let module_specifier = module_specifier.clone();
-
-    println!("module_specifier: {:?}", module_specifier);
-    println!("maybe_referrer: {:?}", maybe_referrer);
 
     fn load_module(
       graph_loader: &mut MemoryLoader,
@@ -108,9 +105,14 @@ impl deno_core::ModuleLoader for TypescriptModuleLoader {
 
         let source_data = parsed
           .transpile(
-            &Default::default(),
+            &TranspileOptions {
+              // preserve imports to build correct module graph.
+              imports_not_used_as_values: ImportsNotUsedAsValues::Preserve,
+              ..TranspileOptions::default()
+            },
             &EmitOptions {
               source_map: SourceMapOption::Separate,
+              remove_comments: true,
               ..EmitOptions::default()
             },
           )?
