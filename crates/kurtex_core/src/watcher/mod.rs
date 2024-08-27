@@ -8,8 +8,9 @@ use deno_core::futures::{SinkExt, StreamExt};
 use notify::{INotifyWatcher, RecursiveMode, Watcher};
 
 use crate::runner::collector::{RunnerCollectorContext, TestRunnerConfig};
+use crate::watcher::resolver::WatcherResolver;
 use crate::watcher::watcher::{
-  AsyncWatcherDebouncer, DebounceEventResult, InnerEvent,
+  AsyncWatcherDebouncer, DebounceEventResult, DebouncedEventKind, InnerEvent,
   DEBOUNCER_CHANNEL_BUFFER,
 };
 use crate::AnyResult;
@@ -20,26 +21,34 @@ pub mod watcher;
 // TODO: improve watcher options,
 // custom folder scope selection
 pub async fn start_watcher(
-  _collector_ctx: &RunnerCollectorContext,
+  collector_ctx: &RunnerCollectorContext,
   _config: Rc<TestRunnerConfig>,
 ) -> AnyResult {
   let root_dir = env::current_dir().unwrap();
 
-  watch_test_files(root_dir).await?;
+  watch_test_files(root_dir, &collector_ctx).await?;
 
   Ok(())
 }
 
-async fn watch_test_files<P: AsRef<Path>>(path: P) -> AnyResult {
+async fn watch_test_files<P: AsRef<Path>>(
+  path: P,
+  ctx: &RunnerCollectorContext,
+) -> AnyResult {
   let path = path.as_ref();
   let (mut watcher, outer_rx) = init_watcher()?;
+  // let mut resolver = WatcherResolver::default();
 
   watcher.watch(path);
 
   outer_rx
     .for_each(|debounce_result| {
       match debounce_result {
-        Ok(events) => events.iter().for_each(|ev| println!("{:?}", ev)),
+        Ok(events) => events.iter().for_each(|ev| {
+          if ev.kind == DebouncedEventKind::Update {
+            // resolver.resolve_file(ev.path.clone(), &ctx);
+          }
+        }),
         Err(err) => {
           eprintln!("Watcher: error while processing events {:?}", err);
           watcher.close();

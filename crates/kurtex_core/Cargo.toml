@@ -23,6 +23,7 @@ rayon = "1.10.0"
 static_assertions = "1.1.0"
 log.workspace = true
 nu-ansi-term.workspace = true
+deno_graph.workspace = true
 
 # Local dependencies
 kurtex_binding = { path = "../kurtex_binding" }

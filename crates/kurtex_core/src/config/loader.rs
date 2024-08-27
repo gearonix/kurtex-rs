@@ -4,14 +4,12 @@ use std::fs;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
-use crate::error::AnyResult;
 use anyhow::{anyhow, Error as AnyError};
 use deno_core::{anyhow, v8};
 use serde::{Deserialize, Serialize};
 
-use crate::deno::runtime::{
-  EsmSerdeResolver, KurtexRuntime, KurtexRuntimeOptions,
-};
+use crate::deno::runtime::{KurtexRuntime, KurtexRuntimeOptions};
+use crate::error::AnyResult;
 
 pub struct ConfigLoader {
   config_path: Cow<'static, str>,
@@ -33,7 +31,7 @@ pub struct KurtexConfig {
   #[serde(default)]
   pub excludes: Vec<String>,
 
-  //  TODO: 
+  //  TODO:
   // https://docs.rs/either/1.10.0/either/serde_untagged/index.html
   #[serde(default)]
   pub watch: Option<bool>,
@@ -115,13 +113,13 @@ impl ConfigLoader {
   }
 
   async fn parse_esm_file(&self) -> AnyResult<KurtexConfig> {
-    let mut runtime = KurtexRuntime::default();
-    let module_id = runtime.process_esm_file(&self.config_path, true).await?;
+    let mut runtime = KurtexRuntime::new(KurtexRuntimeOptions::default());
 
+    let module_id = runtime.process_esm_file(&self.config_path, false).await?;
     let (exports, scope) = runtime
-      .extract_file_exports::<v8::Local<v8::Object>, &str>(module_id, None)
+      .get_module_exports::<v8::Local<v8::Object>, &str>(module_id, None)
       .await?;
-    EsmSerdeResolver::serialize::<KurtexConfig>(scope, exports)
+    KurtexRuntime::serialize_v8_object::<KurtexConfig>(scope, exports)
       .await
       .map_err(|_| anyhow!("Failed to parse config: Invalid settings"))
   }

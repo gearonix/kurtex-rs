@@ -1,6 +1,7 @@
 default:
     just --choose
 
+
 # lint the code
 @lint:
     cargo fmt --all
@@ -43,14 +44,31 @@ default:
 
 
 @run:
-    cargo run --package=kurtex_cli
+    cargo run --bin=ktx
 
+@debug:
+    RUST_BACKTRACE=full cargo run --bin=ktx
 
 @watch:
     command -v cargo-watch > /dev/null || (echo "cargo-watch is not installed" && exit 1)
-    cargo watch -x "run --package=kurtex_cli"
+    cargo watch -x "run --bin=ktx"
 
 # run github actions ci locally
 @ci:
     command -v act > /dev/null || (echo "act is not installed. see https://nektosact.com" && exit 1)
     act
+
+@log:
+  mkdir -p dev
+  cargo run --bin=ktx 2>dev/stdout.log 1> dev/stdout.log
+
+
+@debug-log:
+  mkdir -p dev
+  RUST_BACKTRACE=full cargo run --bin=ktx 2>dev/stderr.log 1> dev/stdout.log
+
+alias r:=run
+alias d:=debug
+alias w:=watch
+alias l:=lint
+alias c:=check

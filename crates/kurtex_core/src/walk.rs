@@ -25,6 +25,12 @@ impl Into<Vec<&str>> for Extensions {
   }
 }
 
+impl From<Vec<&'static str>> for Extensions {
+  fn from(value: Vec<&'static str>) -> Self {
+    Extensions(value)
+  }
+}
+
 pub struct Walk<'a> {
   extensions: Extensions,
   paths: Vec<String>,

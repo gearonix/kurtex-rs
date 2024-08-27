@@ -16,3 +16,4 @@ serde_json.workspace = true
 hashbrown.workspace = true
 anyhow.workspace = true
 rccell.workspace = true
+deno_graph.workspace = true

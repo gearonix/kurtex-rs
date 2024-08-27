@@ -17,7 +17,7 @@ use crate::AnyResult;
 pub const DEBOUNCER_CHANNEL_BUFFER: usize = 100;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-enum DebouncedEventKind {
+pub enum DebouncedEventKind {
   Update,
   Insert,
 }

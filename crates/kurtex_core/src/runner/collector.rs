@@ -95,6 +95,7 @@ impl FileCollector {
           *ctx = Default::default();
         })?;
 
+
         #[allow(unused)]
         let module_id = runtime
           .process_esm_file(file_path.display().to_string(), false)

@@ -1,1 +1,1 @@
-pub mod loader;
+pub mod ts_module_loader;
