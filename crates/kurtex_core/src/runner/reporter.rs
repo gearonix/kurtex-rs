@@ -12,7 +12,8 @@ use rccell::RcCell;
 
 use crate::runner::collector::RunnerCollectorContext;
 use crate::{
-  CollectorFile, CollectorMode, CollectorNode, CollectorStatus, CollectorTask,
+  CollectorFile, CollectorMode, CollectorNode, CollectorStatus,
+  CollectorTask,
 };
 
 pub struct KurtexDefaultReporter {
@@ -79,8 +80,10 @@ impl Reporter for KurtexDefaultReporter {
 
     for task_rc in ctx.tasks.iter() {
       let task = task_rc.lock().unwrap();
-      let is_runnable =
-        matches!(task.status, CollectorStatus::Pass | CollectorStatus::Fail);
+      let is_runnable = matches!(
+        task.status,
+        CollectorStatus::Pass | CollectorStatus::Fail
+      );
 
       match task.status {
         CollectorStatus::Fail => failed.push(task_rc.clone()),
@@ -103,7 +106,10 @@ impl Reporter for KurtexDefaultReporter {
       let has_failed = !failed_files.is_empty();
 
       has_failed.then(|| {
-        println!("{}", format!("Failed to parse {} files", failed_files.len()));
+        println!(
+          "{}",
+          format!("Failed to parse {} files", failed_files.len())
+        );
 
         failed_files.iter().for_each(|file| {
           let file_path = file.file_path.display().to_string();
@@ -156,7 +162,11 @@ impl Reporter for KurtexDefaultReporter {
       format!("Passed {} / {}", passed.len(), runnable.len()),
     );
 
-    self.paint_if(&skipped, LightYellow, format!("Skipped  {}", skipped.len()));
+    self.paint_if(
+      &skipped,
+      LightYellow,
+      format!("Skipped  {}", skipped.len()),
+    );
 
     self.paint_if(&todo, White, format!("Todo  {} ", todo.len()));
 
@@ -170,15 +180,19 @@ impl Reporter for KurtexDefaultReporter {
     });
 
     if has_failed {
-      self
-        .paint(Red, "\n Tests failed. Watching for file changes...".to_string())
+      self.paint(
+        Red,
+        "\n Tests failed. Watching for file changes...".to_string(),
+      )
     } else {
-      self.paint(LightGreen, "\n Watching for file changes...".to_string())
+      self
+        .paint(LightGreen, "\n Watching for file changes...".to_string())
     }
   }
 
   fn watcher_rerun(&self, files: &Vec<PathBuf>, trigger: PathBuf) {
-    let path = trigger.strip_prefix(env::current_dir().unwrap()).unwrap();
+    let path =
+      trigger.strip_prefix(env::current_dir().unwrap()).unwrap();
 
     self.paint(
       LightGreen,
@@ -198,8 +212,9 @@ macro_rules! create_task_vector {
   ($($tt:tt)*) => {{
     use crate::CollectorTask;
 
-    let result: Vec<::std::sync::Arc<::std::sync::Mutex<CollectorTask>>> =
-      Vec::new();
+    let result: Vec<
+      ::std::sync::Arc<::std::sync::Mutex<CollectorTask>>,
+    > = Vec::new();
     result
   }};
 }

@@ -35,10 +35,14 @@ pub async fn run(
   });
   let runtime_rc = RcCell::new(runtime);
 
-  let file_collector = FileCollector::new(config.clone(), runtime_rc.clone());
+  let file_collector =
+    FileCollector::new(config.clone(), runtime_rc.clone());
   let collector_ctx = file_collector.run().await.unwrap();
-  let test_runner =
-    TestRunner::new(collector_ctx.clone(), config.clone(), runtime_rc.clone());
+  let test_runner = TestRunner::new(
+    collector_ctx.clone(),
+    config.clone(),
+    runtime_rc.clone(),
+  );
 
   let module_graph = test_runner.run_files().await?;
   let context = collector_ctx.borrow_mut();
@@ -47,8 +51,12 @@ pub async fn run(
 
   if (config.watch) {
     reporter.watcher_started(&context);
-    watcher::start_watcher(&context, config.clone(), module_graph.clone())
-      .await?;
+    watcher::start_watcher(
+      &context,
+      config.clone(),
+      module_graph.clone(),
+    )
+    .await?;
   }
 
   Ok(())

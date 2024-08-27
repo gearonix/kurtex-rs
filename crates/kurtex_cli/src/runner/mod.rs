@@ -26,7 +26,8 @@ pub struct CliRunner {
   options: ArgMatches,
 }
 
-pub const VALID_CONFIG_FILES: [&str; 2] = ["kurtex.config", "ktx.config"];
+pub const VALID_CONFIG_FILES: [&str; 2] =
+  ["kurtex.config", "ktx.config"];
 
 pub const VALID_EXTENSIONS: [&str; 8] =
   ["js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx"];
@@ -77,7 +78,8 @@ impl Runner for CliRunner {
       ..Default::default()
     };
 
-    let config_loader = ConfigLoader::new(config_path_.display().to_string());
+    let config_loader =
+      ConfigLoader::new(config_path_.display().to_string());
 
     let runner = Box::pin(async move {
       let config_file = config_loader.load().await.unwrap();
@@ -104,7 +106,10 @@ pub fn find_kurtex_config(root_dir: &PathBuf) -> Vec<PathBuf> {
     .build()
     .collect::<Vec<PathBuf>>();
 
-  assert!(!paths.is_empty(), "Unable to find the Kurtex configuration file. ");
+  assert!(
+    !paths.is_empty(),
+    "Unable to find the Kurtex configuration file. "
+  );
 
   paths
 }

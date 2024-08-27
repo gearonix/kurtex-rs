@@ -10,13 +10,16 @@ use rccell::RcCell;
 
 use crate::collector::context::{CollectorContext, CollectorMetadata};
 use crate::collector::structures::{
-  CollectorFile, CollectorMode, CollectorNode, CollectorStatus, CollectorTask,
+  CollectorFile, CollectorMode, CollectorNode, CollectorStatus,
+  CollectorTask,
 };
 use crate::deno::runtime::KurtexRuntime;
 use crate::error::AnyResult;
 use crate::reporter::{KurtexDefaultReporter, Reporter};
 use crate::walk::Walk;
-use crate::{arc, arc_mut, concurrently, map_pinned_futures, KurtexConfig};
+use crate::{
+  arc, arc_mut, concurrently, map_pinned_futures, KurtexConfig,
+};
 
 #[derive(Default, Debug)]
 pub struct TestRunnerConfig {
@@ -100,10 +103,12 @@ impl FileCollector {
         })?;
 
         #[allow(unused)]
-        let module_id =
-          runtime.resolve_test_module(file_path.display().to_string()).await?;
+        let module_id = runtime
+          .resolve_test_module(file_path.display().to_string())
+          .await?;
 
-        runtime.get_state(|ctx: &CollectorContext| ctx.acquire_collectors())?
+        runtime
+          .get_state(|ctx: &CollectorContext| ctx.acquire_collectors())?
       };
 
       let mut collector_file = CollectorFile::from_path(file_path);
@@ -126,7 +131,10 @@ impl FileCollector {
 
         if let Some(factory) = node_factory {
           if let Err(e) = runtime.call_v8_function(&factory).await {
-            debug!("Got error on file {}.", collector_file.file_path.display());
+            debug!(
+              "Got error on file {}.",
+              collector_file.file_path.display()
+            );
 
             collector_file.error = Some(e)
           }
@@ -136,13 +144,16 @@ impl FileCollector {
 
         runtime.mutate_state_with(
           &collected_node,
-          |inner_node, meta: &mut CollectorMetadata| match inner_node.mode {
+          |inner_node, meta: &mut CollectorMetadata| match inner_node
+            .mode
+          {
             CollectorMode::Only => meta.only_mode = true,
             _ => (),
           },
         )?;
 
-        let runner_tasks = collected_node.tasks.iter().map(|m| m.clone());
+        let runner_tasks =
+          collected_node.tasks.iter().map(|m| m.clone());
         collector_ctx.tasks.extend(runner_tasks);
 
         drop(collected_node);
@@ -191,9 +202,12 @@ impl FileCollector {
     };
 
     let mut runtime = self.runtime.borrow_mut();
-    runtime.get_state_with(&mut file_map, |fm, meta: &CollectorMetadata| {
-      Self::normalize_mode_settings(fm, &meta);
-    })?;
+    runtime.get_state_with(
+      &mut file_map,
+      |fm, meta: &CollectorMetadata| {
+        Self::normalize_mode_settings(fm, &meta);
+      },
+    )?;
 
     {
       let mut context = collector_ctx.borrow_mut();
@@ -213,7 +227,8 @@ impl FileCollector {
     // TODO: build times
     included_cases
       .filter(move |included_path| {
-        !excluded_cases.any(|excluded_path| excluded_path.eq(included_path))
+        !excluded_cases
+          .any(|excluded_path| excluded_path.eq(included_path))
       })
       .collect()
   }

@@ -5,7 +5,10 @@ pub fn kurtex_tmp_dir() -> PathBuf {
   env::temp_dir().join("kurtex-tmp")
 }
 
-pub fn add_file_extension<S>(path: S, extension: impl AsRef<Path>) -> PathBuf
+pub fn add_file_extension<S>(
+  path: S,
+  extension: impl AsRef<Path>,
+) -> PathBuf
 where
   S: Into<PathBuf>,
 {

@@ -57,7 +57,9 @@ macro_rules! map_pinned_futures {
     }};
 }
 
-pub async fn run_concurrently<T, O>(handles: impl Iterator<Item = T>) -> Vec<O>
+pub async fn run_concurrently<T, O>(
+  handles: impl Iterator<Item = T>,
+) -> Vec<O>
 where
   T: FnOnce() -> Pin<Box<dyn Future<Output = Result<O, AnyError>>>>,
   O: 'static,
@@ -66,8 +68,9 @@ where
 
   local_set
     .run_until(async move {
-      let tasks =
-        handles.into_iter().map(|handle| tokio::task::spawn_local(handle()));
+      let tasks = handles
+        .into_iter()
+        .map(|handle| tokio::task::spawn_local(handle()));
 
       let mut stream = stream::iter(tasks);
       let mut output = Vec::new();

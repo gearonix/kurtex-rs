@@ -35,24 +35,29 @@ impl KurtexRuntime {
     let include_snapshot = !loaders.is_empty();
 
     let startup_snapshot = include_snapshot.then(|| snapshot);
-    let extensions = loaders.into_iter().map(|loader| loader.load()).collect();
+    let extensions =
+      loaders.into_iter().map(|loader| loader.load()).collect();
     let module_loader = Rc::new(TypescriptModuleLoader::new());
 
-    let deno_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-      startup_snapshot,
-      module_loader: Some(module_loader.clone()),
-      extensions,
-      is_main,
-      extension_transpiler: None,
-      shared_array_buffer_store: Some(CrossIsolateStore::default()),
-      ..Default::default()
-    });
+    let deno_runtime =
+      deno_core::JsRuntime::new(deno_core::RuntimeOptions {
+        startup_snapshot,
+        module_loader: Some(module_loader.clone()),
+        extensions,
+        is_main,
+        extension_transpiler: None,
+        shared_array_buffer_store: Some(CrossIsolateStore::default()),
+        ..Default::default()
+      });
     let graph = KurtexGraph::new(module_loader.clone());
 
     Self { runtime: deno_runtime, graph }
   }
 
-  pub async fn resolve_module<S>(&mut self, file_path: S) -> AnyResult<ModuleId>
+  pub async fn resolve_module<S>(
+    &mut self,
+    file_path: S,
+  ) -> AnyResult<ModuleId>
   where
     S: AsRef<str>,
   {
@@ -121,8 +126,10 @@ impl KurtexRuntime {
     let scope_ref = &mut scope;
     let file_object_mapper = global.open(scope_ref);
 
-    let specifier =
-      exports_specifier.as_ref().map(|s| s.as_ref()).unwrap_or("default");
+    let specifier = exports_specifier
+      .as_ref()
+      .map(|s| s.as_ref())
+      .unwrap_or("default");
     let default_export = v8::String::new(scope_ref, specifier).unwrap();
     let exported_config =
       file_object_mapper.get(scope_ref, default_export.into()).unwrap();
@@ -199,8 +206,9 @@ impl KurtexRuntime {
     file_path: &str,
     is_main: bool,
   ) -> AnyResult<ModuleId> {
-    let module_specifier = ModuleSpecifier::from_file_path(&file_path)
-      .map_err(|_e| anyhow!("Invalid module path: {}", file_path))?;
+    let module_specifier =
+      ModuleSpecifier::from_file_path(&file_path)
+        .map_err(|_e| anyhow!("Invalid module path: {}", file_path))?;
 
     if is_main {
       self.runtime.load_main_es_module(&module_specifier).await
@@ -239,7 +247,11 @@ pub struct KurtexGraph {
 
 impl KurtexGraph {
   pub fn new(module_loader: Rc<TypescriptModuleLoader>) -> Self {
-    KurtexGraph { roots: vec![], module_loader, built: Default::default() }
+    KurtexGraph {
+      roots: vec![],
+      module_loader,
+      built: Default::default(),
+    }
   }
 
   fn add_root(&mut self, specifier: ModuleSpecifier) {

@@ -41,7 +41,9 @@ impl CollectorRegistryExt {
     #[from_v8] run_mode: CollectorMode,
   ) {
     collector_ctx.register_collector(RcCell::new(
-      NodeCollectorManager::new_with_factory(identifier, run_mode, factory),
+      NodeCollectorManager::new_with_factory(
+        identifier, run_mode, factory,
+      ),
     ));
   }
 
@@ -64,13 +66,14 @@ impl ExtensionLoader for CollectorRegistryExt {
   fn load(&self) -> deno_core::Extension {
     const EXTENSION_IDENTIFIER: &'static str = "KurtexInternals";
 
-    let provide_state = Box::new(move |op_state: &mut deno_core::OpState| {
-      let collector_ctx = CollectorContext::default();
-      let collector_meta = CollectorMetadata::default();
+    let provide_state =
+      Box::new(move |op_state: &mut deno_core::OpState| {
+        let collector_ctx = CollectorContext::default();
+        let collector_meta = CollectorMetadata::default();
 
-      op_state.put(collector_ctx);
-      op_state.put(collector_meta)
-    });
+        op_state.put(collector_ctx);
+        op_state.put(collector_meta)
+      });
 
     let collector_registry_ops: Vec<deno_core::OpDecl> = vec![
       Self::op_register_collector_task,

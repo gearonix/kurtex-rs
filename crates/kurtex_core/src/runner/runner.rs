@@ -8,11 +8,13 @@ use rayon::prelude::*;
 use rccell::RcCell;
 
 use crate::reporter::{KurtexDefaultReporter, Reporter};
-use crate::runner::collector::{RunnerCollectorContext, TestRunnerConfig};
+use crate::runner::collector::{
+  RunnerCollectorContext, TestRunnerConfig,
+};
 use crate::runtime::KurtexRuntime;
 use crate::{
-  AnyResult, CollectorFile, CollectorMode, CollectorNode, CollectorStatus,
-  CollectorTask, LifetimeHook,
+  AnyResult, CollectorFile, CollectorMode, CollectorNode,
+  CollectorStatus, CollectorTask, LifetimeHook,
 };
 
 pub struct TestRunner {
@@ -134,7 +136,9 @@ impl TestRunner {
     }
 
     let invoked_result: AnyResult = try {
-      self.invoke_lifetime_hook(parent, LifetimeHook::BeforeEach).await?;
+      self
+        .invoke_lifetime_hook(parent, LifetimeHook::BeforeEach)
+        .await?;
       self.invoke_task(&*task).await?;
 
       task.status = CollectorStatus::Pass;

@@ -72,8 +72,10 @@ impl DebouncerDataInner {
 
     for (path, event) in self.event_map.drain() {
       if event.update.elapsed() >= self.timeout {
-        events_expired
-          .push(DebouncedEvent::new(path.clone(), DebouncedEventKind::Update));
+        events_expired.push(DebouncedEvent::new(
+          path.clone(),
+          DebouncedEventKind::Update,
+        ));
       } else if event.insert.elapsed() >= self.timeout {
         Self::update_deadline(
           self.timeout,
@@ -82,8 +84,10 @@ impl DebouncerDataInner {
         );
 
         data_back.insert(path.clone(), event);
-        events_expired
-          .push(DebouncedEvent::new(path.clone(), DebouncedEventKind::Insert));
+        events_expired.push(DebouncedEvent::new(
+          path.clone(),
+          DebouncedEventKind::Insert,
+        ));
       } else {
         Self::update_deadline(
           self.timeout,
@@ -150,7 +154,8 @@ pub struct DebouncerConfig {
 
 impl DebouncerConfig {
   pub fn new(timeout: time::Duration) -> Self {
-    let notify_config = notify::Config::default().with_poll_interval(timeout);
+    let notify_config =
+      notify::Config::default().with_poll_interval(timeout);
 
     DebouncerConfig { timeout, inner: notify_config }
   }
@@ -221,7 +226,8 @@ impl<T: Watcher> AsyncWatcherDebouncer<T> {
       'outer: loop {
         match debouncer.next_tick() {
           Some(timeout) => {
-            let timeout_result = recv_timeout(timeout, inner_rx.next()).await;
+            let timeout_result =
+              recv_timeout(timeout, inner_rx.next()).await;
 
             match timeout_result {
               Ok(Some(InnerEvent::NotifyEvent(ev))) => match ev {
@@ -259,7 +265,10 @@ impl<T: Watcher> AsyncWatcherDebouncer<T> {
         futures::executor::block_on(async {
           let _ = inner_tx_c
             .send(InnerEvent::NotifyEvent(event.map_err(|e| {
-              anyhow!("Notify internal error occurred. {}", e.to_string())
+              anyhow!(
+                "Notify internal error occurred. {}",
+                e.to_string()
+              )
             })))
             .await
             .unwrap();

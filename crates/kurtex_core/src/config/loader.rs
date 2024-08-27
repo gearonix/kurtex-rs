@@ -42,8 +42,9 @@ pub struct KurtexConfig {
 
 impl Default for KurtexConfig {
   fn default() -> Self {
-    let to_vec =
-      |v: &'static [&'static str]| v.iter().map(|&s| s.to_owned()).collect();
+    let to_vec = |v: &'static [&'static str]| {
+      v.iter().map(|&s| s.to_owned()).collect()
+    };
 
     KurtexConfig {
       includes: to_vec(DEFAULT_INCLUDES),
@@ -84,10 +85,10 @@ impl ConfigLoader {
   fn resolve_config_extension(&self) -> AnyResult<ConfigExtension> {
     let config_path = PathBuf::from(self.config_path.as_ref());
 
-    let file_extension = config_path
-      .extension()
-      .and_then(OsStr::to_str)
-      .ok_or_else(|| anyhow!("Failed to resolve config: missing extension."))?;
+    let file_extension =
+      config_path.extension().and_then(OsStr::to_str).ok_or_else(
+        || anyhow!("Failed to resolve config: missing extension."),
+      )?;
 
     match file_extension {
       "ts" => Ok(ConfigExtension::TypeScript),
@@ -113,7 +114,8 @@ impl ConfigLoader {
   }
 
   async fn parse_esm_file(&self) -> AnyResult<KurtexConfig> {
-    let mut runtime = KurtexRuntime::new(KurtexRuntimeOptions::default());
+    let mut runtime =
+      KurtexRuntime::new(KurtexRuntimeOptions::default());
 
     let module_id = runtime.resolve_module(&self.config_path).await?;
     let (exports, scope) = runtime

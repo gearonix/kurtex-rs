@@ -9,7 +9,9 @@ use deno_graph::{ModuleGraph, ModuleSpecifier};
 use notify::{INotifyWatcher, Watcher};
 
 use crate::reporter::Reporter;
-use crate::runner::collector::{RunnerCollectorContext, TestRunnerConfig};
+use crate::runner::collector::{
+  RunnerCollectorContext, TestRunnerConfig,
+};
 use crate::watcher::resolver::WatcherResolver;
 use crate::watcher::watcher::{
   AsyncWatcherDebouncer, DebounceEventResult, DebouncedEventKind,
@@ -52,10 +54,9 @@ async fn watch_test_files<P: AsRef<Path>>(
           if ev.kind == DebouncedEventKind::Update {
             let path = ev.path.clone();
 
-            let changed_files = resolver.resolve_dependency_tests(path.clone());
+            let changed_files =
+              resolver.resolve_dependency_tests(path.clone());
             ctx.reporter.watcher_rerun(&changed_files, path);
-            
-            
           }
         }),
         Err(err) => {
@@ -71,8 +72,10 @@ async fn watch_test_files<P: AsRef<Path>>(
   Ok(())
 }
 
-fn init_watcher(
-) -> AnyResult<(AsyncWatcherDebouncer, mpsc::Receiver<DebounceEventResult>)> {
+fn init_watcher() -> AnyResult<(
+  AsyncWatcherDebouncer,
+  mpsc::Receiver<DebounceEventResult>,
+)> {
   let (outer_tx, outer_rx) =
     mpsc::channel::<DebounceEventResult>(DEBOUNCER_CHANNEL_BUFFER);
 

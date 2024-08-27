@@ -13,7 +13,10 @@ pub struct CollectorMetadata {
 }
 
 impl CollectorContext {
-  pub fn register_collector(&mut self, new_node: RcCell<NodeCollectorManager>) {
+  pub fn register_collector(
+    &mut self,
+    new_node: RcCell<NodeCollectorManager>,
+  ) {
     self.collectors.push(new_node.clone());
     self.set_current(new_node);
   }

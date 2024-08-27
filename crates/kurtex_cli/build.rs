@@ -17,7 +17,9 @@ use swc_ecma_transforms_base::{
 };
 use swc_ecma_transforms_module::common_js;
 use swc_ecma_transforms_module::util::Config as ModuleConfig;
-use swc_ecma_transforms_typescript::{typescript, Config as TypescriptConfig};
+use swc_ecma_transforms_typescript::{
+  typescript, Config as TypescriptConfig,
+};
 use swc_ecma_visit::FoldWith;
 
 use kurtex_core::util::fs::kurtex_tmp_dir;
@@ -38,14 +40,20 @@ fn main() -> Result<(), anyhow::Error> {
     "Failed to transpile typescript entrypoint file."
   );
 
-  let entrypoint_const = create_entrypoint_onebyte_const(&esm_entrypoint_path);
+  let entrypoint_const =
+    create_entrypoint_onebyte_const(&esm_entrypoint_path);
   let file_source_specifier = FastStaticString::new(&entrypoint_const);
-  let esm_identifier: String =
-    format!("ext:{}/{}", EXTENSION_IDENTIFIER, esm_entrypoint_path.display());
+  let esm_identifier: String = format!(
+    "ext:{}/{}",
+    EXTENSION_IDENTIFIER,
+    esm_entrypoint_path.display()
+  );
   let esm_identifier: &'static str = esm_identifier.leak();
 
-  let esm_file_source =
-    deno_core::ExtensionFileSource::new(&esm_identifier, file_source_specifier);
+  let esm_file_source = deno_core::ExtensionFileSource::new(
+    &esm_identifier,
+    file_source_specifier,
+  );
 
   let runtime_extension = deno_core::Extension {
     name: EXTENSION_IDENTIFIER,
@@ -55,10 +63,11 @@ fn main() -> Result<(), anyhow::Error> {
     ..deno_core::Extension::default()
   };
 
-  let js_runtime = deno_core::JsRuntimeForSnapshot::new(RuntimeOptions {
-    extensions: vec![runtime_extension],
-    ..RuntimeOptions::default()
-  });
+  let js_runtime =
+    deno_core::JsRuntimeForSnapshot::new(RuntimeOptions {
+      extensions: vec![runtime_extension],
+      ..RuntimeOptions::default()
+    });
   let snapshot_output = js_runtime.snapshot();
 
   fs::remove_dir_all(kurtex_tmp_dir())
@@ -72,7 +81,8 @@ pub fn get_out_dir() -> PathBuf {
 }
 
 pub fn get_kurtex_package_dir() -> PathBuf {
-  let workspace_dir: PathBuf = env::var("CARGO_WORKSPACE_DIR").unwrap().into();
+  let workspace_dir: PathBuf =
+    env::var("CARGO_WORKSPACE_DIR").unwrap().into();
   workspace_dir.join("packages/kurtex")
 }
 
@@ -112,11 +122,17 @@ where
     let unresolved_mark = Mark::new();
     let top_level_mark = Mark::new();
 
-    let program =
-      program.fold_with(&mut resolver(unresolved_mark, top_level_mark, true));
+    let program = program.fold_with(&mut resolver(
+      unresolved_mark,
+      top_level_mark,
+      true,
+    ));
 
     let program = program.fold_with(&mut typescript(
-      TypescriptConfig { no_empty_export: true, ..TypescriptConfig::default() },
+      TypescriptConfig {
+        no_empty_export: true,
+        ..TypescriptConfig::default()
+      },
       unresolved_mark,
       top_level_mark,
     ));
@@ -163,9 +179,10 @@ fn create_entrypoint_onebyte_const(
   INIT.call_once(|| {
     let entrypoint_contents = fs::read(esm_entrypoint_path).unwrap();
     unsafe {
-      ONE_BYTE_CONST = Some(FastStaticString::create_external_onebyte_const(
-        Box::leak(entrypoint_contents.into_boxed_slice()),
-      ));
+      ONE_BYTE_CONST =
+        Some(FastStaticString::create_external_onebyte_const(
+          Box::leak(entrypoint_contents.into_boxed_slice()),
+        ));
     }
   });
 

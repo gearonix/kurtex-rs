@@ -2,7 +2,8 @@ use crate::fs::add_file_extension;
 use globwalk;
 use std::path::{Path, PathBuf};
 
-pub const DEFAULT_EXTENSIONS: [&'static str; 4] = ["ts", "js", "mjs", "cjs"];
+pub const DEFAULT_EXTENSIONS: [&'static str; 4] =
+  ["ts", "js", "mjs", "cjs"];
 
 #[derive(Clone)]
 pub struct Extensions(pub Vec<&'static str>);

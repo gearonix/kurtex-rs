@@ -69,8 +69,9 @@ impl<'a> deno_core::FromV8<'a> for CollectorIdentifier {
     scope: &mut v8::HandleScope<'a>,
     value: v8::Local<'a, v8::Value>,
   ) -> Result<Self, Self::Error> {
-    let identifier =
-      CollectorIdentifier::Custom(deno_core::_ops::to_string(scope, &value));
+    let identifier = CollectorIdentifier::Custom(
+      deno_core::_ops::to_string(scope, &value),
+    );
 
     Ok(identifier)
   }
@@ -165,7 +166,8 @@ impl<'a> deno_core::FromV8<'a> for TestCallback {
     scope: &mut v8::HandleScope<'a>,
     value: v8::Local<'a, v8::Value>,
   ) -> Result<Self, Self::Error> {
-    let Ok(local_cb) = deno_core::_ops::v8_try_convert::<v8::Function>(value)
+    let Ok(local_cb) =
+      deno_core::_ops::v8_try_convert::<v8::Function>(value)
     else {
       panic!("Failed to convert parameter (deno_core::ops::v8_try_convert). Expected function.");
     };
@@ -225,7 +227,11 @@ impl LifetimeHookManager {
     LifetimeHookManager { data: hooks }
   }
 
-  pub fn add_hook(&mut self, hook_key: LifetimeHook, callback: TestCallback) {
+  pub fn add_hook(
+    &mut self,
+    hook_key: LifetimeHook,
+    callback: TestCallback,
+  ) {
     self
       .data
       .get_mut(&hook_key)

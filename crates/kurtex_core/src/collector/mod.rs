@@ -29,8 +29,11 @@ impl NodeCollectorManager {
     node_factory: Option<TestCallback>,
   ) -> Self {
     let task_queue = Vec::new();
-    let collector_node =
-      arc_mut!(CollectorNode { identifier, mode, ..CollectorNode::default() });
+    let collector_node = arc_mut!(CollectorNode {
+      identifier,
+      mode,
+      ..CollectorNode::default()
+    });
 
     NodeCollectorManager {
       inner_node: collector_node,

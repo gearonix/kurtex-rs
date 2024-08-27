@@ -1,10 +1,9 @@
-use rayon::prelude::*;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::AnyResult;
 use deno_graph::ModuleSpecifier;
 use deno_graph::{GraphKind, ModuleGraph};
+use rayon::prelude::*;
 
 pub struct WatcherResolver {
   // TODO: change Specifier to something lighter + BTreeSet
@@ -43,7 +42,12 @@ impl WatcherResolver {
       specifier,
     );
 
-    self.changed_files.iter().cloned().map(|url| url.path().into()).collect()
+    self
+      .changed_files
+      .iter()
+      .cloned()
+      .map(|url| url.path().into())
+      .collect()
   }
 
   fn resolve_dependencies(
@@ -66,11 +70,14 @@ impl WatcherResolver {
       return changed_files.push(specifier.clone());
     }
 
-    let modules = module_graph.modules().filter_map(|module| module.js());
+    let modules =
+      module_graph.modules().filter_map(|module| module.js());
     modules.for_each(|module| {
       for dependency in module.dependencies.values() {
-        let is_importer =
-          dependency.get_code().filter(|&dep| dep.eq(&specifier)).is_some();
+        let is_importer = dependency
+          .get_code()
+          .filter(|&dep| dep.eq(&specifier))
+          .is_some();
 
         is_importer.then(|| {
           Self::resolve_dependencies(
