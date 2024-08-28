@@ -1,12 +1,16 @@
+use std::path::PathBuf;
 use std::rc::Rc;
 
+use deno_core::futures;
 use rayon::prelude::*;
 use rccell::RcCell;
 
 use crate::deno::ExtensionLoader;
 use crate::ops::CollectorRegistryExt;
 use crate::reporter::Reporter;
-use crate::runner::collector::{FileCollector, TestRunnerConfig};
+use crate::runner::collector::{
+  FileCollector, FileCollectorOptions, TestRunnerConfig,
+};
 use crate::runner::runner::TestRunner;
 use crate::runtime::{KurtexRuntime, KurtexRuntimeOptions};
 use crate::{watcher, AnyResult};
@@ -37,24 +41,49 @@ pub async fn run(
 
   let file_collector =
     FileCollector::new(config.clone(), runtime_rc.clone());
-  let collector_ctx = file_collector.run().await.unwrap();
-  let test_runner = TestRunner::new(
+  let collector_ctx =
+    file_collector.run(FileCollectorOptions::default()).await.unwrap();
+  let mut test_runner = TestRunner::new(
     collector_ctx.clone(),
     config.clone(),
     runtime_rc.clone(),
   );
 
-  let module_graph = test_runner.run_files().await?;
+  test_runner.run_files().await;
+
+  let module_graph = {
+    let runtime = runtime_rc.borrow_mut();
+    runtime.build_graph().await
+  };
+
   let context = collector_ctx.borrow_mut();
   let reporter = &context.reporter;
+
   reporter.report_finished(&context);
 
   if (config.watch) {
+    let restart_runner = Box::new(
+      |changed_files: Vec<PathBuf>,
+       file_collector: &FileCollector,
+       test_runner: &mut TestRunner| {
+        futures::executor::block_on(async move {
+          let collector_ctx = file_collector
+            .run(FileCollectorOptions { existing_paths: changed_files })
+            .await
+            .unwrap();
+
+          test_runner.with_context(collector_ctx).run_files().await;
+        });
+      },
+    );
+
     reporter.watcher_started(&context);
+
     watcher::start_watcher(
-      &context,
-      config.clone(),
-      module_graph.clone(),
+      module_graph,
+      restart_runner,
+      &file_collector,
+      &mut test_runner,
     )
     .await?;
   }

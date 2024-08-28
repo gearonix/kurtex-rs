@@ -77,8 +77,9 @@ pub struct FileCollector {
   runtime: RcCell<KurtexRuntime>,
 }
 
+#[derive(Default)]
 pub struct FileCollectorOptions {
-  pub(crate) paths: Vec<PathBuf>,
+  pub(crate) existing_paths: Vec<PathBuf>,
 }
 
 impl FileCollector {
@@ -89,7 +90,10 @@ impl FileCollector {
     FileCollector { config, runtime }
   }
 
-  pub async fn run(&self) -> AnyResult<RcCell<RunnerCollectorContext>> {
+  pub async fn run(
+    &self,
+    opts: FileCollectorOptions,
+  ) -> AnyResult<RcCell<RunnerCollectorContext>> {
     async fn process_test_file(
       file_path: PathBuf,
       runtime: RcCell<KurtexRuntime>,
@@ -103,9 +107,9 @@ impl FileCollector {
         })?;
 
         #[allow(unused)]
-        let module_id = runtime
+        let _ = runtime
           .resolve_test_module(file_path.display().to_string())
-          .await?;
+          .await;
 
         runtime
           .get_state(|ctx: &CollectorContext| ctx.acquire_collectors())?
@@ -172,8 +176,13 @@ impl FileCollector {
     }
     let collector_ctx = RcCell::new(RunnerCollectorContext::default());
 
+    let target_files = if opts.existing_paths.is_empty() {
+      Self::collect_test_files(&self.config)
+    } else {
+      opts.existing_paths
+    };
     let processed_files = map_pinned_futures!(
-      Self::collect_test_files(&self.config),
+      target_files,
       process_test_file(runtime, collector_ctx),
       {
         runtime = self.runtime.clone()
@@ -181,10 +190,7 @@ impl FileCollector {
       }
     );
 
-    {
-      let mut context = collector_ctx.borrow_mut();
-      context.reporter.start();
-    }
+    collector_ctx.borrow_mut().reporter.start();
 
     let mut file_map: CollectorFileMap = if self.config.parallel {
       concurrently!(processed_files)

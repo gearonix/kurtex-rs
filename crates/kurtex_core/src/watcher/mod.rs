@@ -1,4 +1,6 @@
-use std::path::Path;
+use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::rc::Rc;
 use std::time::Duration;
 use std::{env, future};
@@ -10,8 +12,9 @@ use notify::{INotifyWatcher, Watcher};
 
 use crate::reporter::Reporter;
 use crate::runner::collector::{
-  RunnerCollectorContext, TestRunnerConfig,
+  FileCollector, RunnerCollectorContext, TestRunnerConfig,
 };
+use crate::runner::runner::TestRunner;
 use crate::watcher::resolver::WatcherResolver;
 use crate::watcher::watcher::{
   AsyncWatcherDebouncer, DebounceEventResult, DebouncedEventKind,
@@ -22,24 +25,37 @@ use crate::AnyResult;
 pub mod resolver;
 pub mod watcher;
 
+pub type RestartRunnerFn =
+  dyn Fn(Vec<PathBuf>, &FileCollector, &mut TestRunner);
+
 // TODO: improve watcher options (according to graph),
 // custom folder scope selection
 pub async fn start_watcher(
-  collector_ctx: &RunnerCollectorContext,
-  _config: Rc<TestRunnerConfig>,
   module_graph: Rc<ModuleGraph>,
+  trigger: Box<RestartRunnerFn>,
+  file_collector: &FileCollector,
+  test_runner: &mut TestRunner,
 ) -> AnyResult {
   let root_dir = env::current_dir().unwrap();
 
-  watch_test_files(root_dir, &collector_ctx, module_graph).await?;
+  watch_test_files(
+    root_dir,
+    module_graph,
+    trigger,
+    file_collector,
+    test_runner,
+  )
+  .await?;
 
   Ok(())
 }
 
 async fn watch_test_files<P: AsRef<Path>>(
   path: P,
-  ctx: &RunnerCollectorContext,
   module_graph: Rc<ModuleGraph>,
+  trigger: Box<RestartRunnerFn>,
+  file_collector: &FileCollector,
+  test_runner: &mut TestRunner,
 ) -> AnyResult {
   let path = path.as_ref();
   let (mut watcher, outer_rx) = init_watcher()?;
@@ -56,7 +72,8 @@ async fn watch_test_files<P: AsRef<Path>>(
 
             let changed_files =
               resolver.resolve_dependency_tests(path.clone());
-            ctx.reporter.watcher_rerun(&changed_files, path);
+            // ctx.reporter.watcher_rerun(&changed_files, path);
+            trigger(changed_files, file_collector, test_runner)
           }
         }),
         Err(err) => {

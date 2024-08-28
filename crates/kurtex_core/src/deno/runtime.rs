@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::{anyhow, bail};
@@ -9,6 +10,7 @@ use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
 use deno_core::{v8, CrossIsolateStore, ModuleId, PollEventLoopOptions};
 use deno_graph::{GraphKind, ModuleGraph, WalkOptions};
+use hashbrown::HashMap;
 use rccell::RcCell;
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +21,8 @@ use crate::AnyResult;
 
 pub struct KurtexRuntime {
   runtime: deno_core::JsRuntime,
-  pub(crate) graph: KurtexGraph,
+  module_map: HashMap<ModuleId, ModuleSpecifier>,
+  graph: KurtexGraph,
 }
 
 #[derive(Default)]
@@ -51,7 +54,7 @@ impl KurtexRuntime {
       });
     let graph = KurtexGraph::new(module_loader.clone());
 
-    Self { runtime: deno_runtime, graph }
+    Self { runtime: deno_runtime, graph, module_map: Default::default() }
   }
 
   pub async fn resolve_module<S>(
@@ -84,8 +87,17 @@ impl KurtexRuntime {
     S: AsRef<str>,
   {
     let file_path = file_path.as_ref();
+    let module_specifier =
+      ModuleSpecifier::from_file_path(&file_path).unwrap();
 
     let module_id = self.load_es_module(file_path, is_main).await?;
+
+    if self.module_map.contains_key(&module_id) {
+      return Ok(module_id);
+    };
+
+    self.module_map.insert(module_id, module_specifier);
+
     self.runtime.mod_evaluate(module_id).await?;
     self.runtime.run_event_loop(Default::default()).await?;
 
@@ -236,6 +248,10 @@ impl KurtexRuntime {
     R: Serialize + for<'de> Deserialize<'de>,
   {
     Ok(deno_core::serde_v8::from_v8(&mut scope, v8_object.into())?)
+  }
+
+  pub async fn build_graph(&self) -> Rc<ModuleGraph> {
+    self.graph.build().await.unwrap()
   }
 }
 

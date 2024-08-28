@@ -41,18 +41,13 @@ impl TestRunner {
     TestRunner { context, config, runtime }
   }
 
-  pub async fn run_files(&self) -> AnyResult<Rc<ModuleGraph>> {
+  pub async fn run_files(&self) {
     let mut ctx = self.context.borrow_mut();
     ctx.reporter.report_collected();
 
     for file in ctx.file_map.values() {
       self.run_file(file.clone(), &ctx).await;
     }
-
-    let runtime = self.runtime.borrow_mut();
-    let graph = runtime.graph.build().await?;
-
-    Ok(graph)
   }
 
   async fn run_file(
@@ -170,6 +165,14 @@ impl TestRunner {
 
       &ctx.reporter
     });
+  }
+
+  pub fn with_context(
+    &mut self,
+    context: RcCell<RunnerCollectorContext>,
+  ) -> &mut Self {
+    self.context = context;
+    self
   }
 }
 
