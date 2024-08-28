@@ -90,7 +90,11 @@ impl KurtexRuntime {
     let module_specifier =
       ModuleSpecifier::from_file_path(&file_path).unwrap();
 
-    let module_id = self.load_es_module(file_path, is_main).await?;
+    let module_id = if is_main {
+      self.runtime.load_main_es_module(&module_specifier).await?
+    } else {
+      self.runtime.load_side_es_module(&module_specifier).await?
+    };
 
     if self.module_map.contains_key(&module_id) {
       return Ok(module_id);
@@ -211,22 +215,6 @@ impl KurtexRuntime {
       .unwrap();
 
     Ok(getter(generic_state))
-  }
-
-  async fn load_es_module(
-    &mut self,
-    file_path: &str,
-    is_main: bool,
-  ) -> AnyResult<ModuleId> {
-    let module_specifier =
-      ModuleSpecifier::from_file_path(&file_path)
-        .map_err(|_e| anyhow!("Invalid module path: {}", file_path))?;
-
-    if is_main {
-      self.runtime.load_main_es_module(&module_specifier).await
-    } else {
-      self.runtime.load_side_es_module(&module_specifier).await
-    }
   }
 
   pub async fn call_v8_function<'a>(

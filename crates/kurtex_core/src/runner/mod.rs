@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use deno_core::futures;
 use rayon::prelude::*;
 use rccell::RcCell;
 
@@ -9,7 +8,8 @@ use crate::deno::ExtensionLoader;
 use crate::ops::CollectorRegistryExt;
 use crate::reporter::Reporter;
 use crate::runner::collector::{
-  FileCollector, FileCollectorOptions, TestRunnerConfig,
+  FileCollector, FileCollectorOptions, RunnerCollectorContext,
+  TestRunnerConfig,
 };
 use crate::runner::runner::TestRunner;
 use crate::runtime::{KurtexRuntime, KurtexRuntimeOptions};
@@ -20,73 +20,89 @@ pub mod reporter;
 pub mod runner;
 
 // TODO: extract config from deno.json
+#[derive(Clone)]
 pub struct EmitRuntimeOptions {
   pub runtime_snapshot: &'static [u8],
 }
 
-pub async fn run(
-  config: TestRunnerConfig,
-  emit_opts: EmitRuntimeOptions,
+pub async fn launch(
+  config: Rc<TestRunnerConfig>,
+  emit_opts: Rc<EmitRuntimeOptions>,
 ) -> AnyResult {
-  let config = Rc::new(config);
-  let collector_ops_loader: Box<dyn ExtensionLoader> =
-    Box::new(CollectorRegistryExt::new());
+  let (runtime, ctx) =
+    launch_runner(config.clone(), emit_opts.clone(), None).await?;
+  let module_graph = runtime.borrow_mut().build_graph().await;
 
-  let runtime = KurtexRuntime::new(KurtexRuntimeOptions {
-    loaders: vec![collector_ops_loader],
-    snapshot: emit_opts.runtime_snapshot,
-    is_main: true,
-  });
-  let runtime_rc = RcCell::new(runtime);
-
-  let file_collector =
-    FileCollector::new(config.clone(), runtime_rc.clone());
-  let collector_ctx =
-    file_collector.run(FileCollectorOptions::default()).await.unwrap();
-  let mut test_runner = TestRunner::new(
-    collector_ctx.clone(),
-    config.clone(),
-    runtime_rc.clone(),
-  );
-
-  test_runner.run_files().await;
-
-  let module_graph = {
-    let runtime = runtime_rc.borrow_mut();
-    runtime.build_graph().await
-  };
-
-  let context = collector_ctx.borrow_mut();
-  let reporter = &context.reporter;
-
-  reporter.report_finished(&context);
+  let context = ctx.borrow_mut();
+  context.reporter.report_finished(&context);
 
   if (config.watch) {
-    let restart_runner = Box::new(
-      |changed_files: Vec<PathBuf>,
-       file_collector: &FileCollector,
-       test_runner: &mut TestRunner| {
-        futures::executor::block_on(async move {
-          let collector_ctx = file_collector
-            .run(FileCollectorOptions { existing_paths: changed_files })
-            .await
-            .unwrap();
+    context.reporter.watcher_started(&context);
 
-          test_runner.with_context(collector_ctx).run_files().await;
-        });
-      },
-    );
+    fn restart_runner(
+      changed_files: Vec<PathBuf>,
+      config: Rc<TestRunnerConfig>,
+      emit_opts: Rc<EmitRuntimeOptions>,
+    ) {
+      deno_core::unsync::spawn(async move {
+        let launch_result =
+          launch_runner(config, emit_opts, Some(changed_files)).await;
 
-    reporter.watcher_started(&context);
+        if let Ok((_, ctx)) = launch_result {
+          let context = ctx.borrow_mut();
+          context.reporter.watcher_started(&context);
+        }
+      });
+    };
 
     watcher::start_watcher(
+      Box::new(restart_runner),
       module_graph,
-      restart_runner,
-      &file_collector,
-      &mut test_runner,
+      config,
+      emit_opts,
+      &context,
     )
     .await?;
   }
 
   Ok(())
+}
+
+async fn launch_runner(
+  config: Rc<TestRunnerConfig>,
+  emit_opts: Rc<EmitRuntimeOptions>,
+  existing_paths: Option<Vec<PathBuf>>,
+) -> AnyResult<(RcCell<KurtexRuntime>, RcCell<RunnerCollectorContext>)> {
+  let runtime = create_runtime(emit_opts);
+
+  let file_collector =
+    FileCollector::new(config.clone(), runtime.clone());
+  let collector_ctx =
+    file_collector.run(FileCollectorOptions { existing_paths }).await?;
+
+  let mut test_runner = TestRunner::new(
+    collector_ctx.clone(),
+    config.clone(),
+    runtime.clone(),
+  );
+
+  test_runner.run_files().await;
+
+  Ok((runtime, collector_ctx))
+}
+
+fn create_runtime(
+  emit_options: Rc<EmitRuntimeOptions>,
+) -> RcCell<KurtexRuntime> {
+  let collector_ops_loader: Box<dyn ExtensionLoader> =
+    Box::new(CollectorRegistryExt::new());
+
+  // TODO: reduce performance
+  let runtime = RcCell::new(KurtexRuntime::new(KurtexRuntimeOptions {
+    loaders: vec![collector_ops_loader],
+    snapshot: emit_options.runtime_snapshot,
+    is_main: true,
+  }));
+
+  runtime
 }

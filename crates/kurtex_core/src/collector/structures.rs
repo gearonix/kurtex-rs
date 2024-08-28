@@ -111,6 +111,7 @@ impl std::fmt::Debug for CollectorFile {
       .field("file", &self.file_path)
       .field("collected", &self.collected)
       .field("nodes", &self.nodes)
+      .field("error", &self.error.as_ref().map(|e| e.to_string()))
       .finish()
   }
 }

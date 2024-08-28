@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -79,7 +80,7 @@ pub struct FileCollector {
 
 #[derive(Default)]
 pub struct FileCollectorOptions {
-  pub(crate) existing_paths: Vec<PathBuf>,
+  pub(crate) existing_paths: Option<Vec<PathBuf>>,
 }
 
 impl FileCollector {
@@ -176,10 +177,10 @@ impl FileCollector {
     }
     let collector_ctx = RcCell::new(RunnerCollectorContext::default());
 
-    let target_files = if opts.existing_paths.is_empty() {
-      Self::collect_test_files(&self.config)
+    let target_files = if let Some(paths) = opts.existing_paths {
+      paths
     } else {
-      opts.existing_paths
+      Self::collect_test_files(&self.config)
     };
     let processed_files = map_pinned_futures!(
       target_files,

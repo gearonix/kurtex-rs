@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use anyhow::Context;
 use clap::ArgMatches;
@@ -86,12 +87,11 @@ impl Runner for CliRunner {
       let runtime_snapshot = settings::RUNTIME_SNAPSHOT;
 
       runner_config.adjust_config_file(config_file);
+      let emit_options =
+        Rc::new(EmitRuntimeOptions { runtime_snapshot });
 
-      kurtex_core::runner::run(
-        runner_config,
-        EmitRuntimeOptions { runtime_snapshot },
-      )
-      .await
+      kurtex_core::runner::launch(Rc::new(runner_config), emit_options)
+        .await
     });
 
     run_async(runner, Some(rt));

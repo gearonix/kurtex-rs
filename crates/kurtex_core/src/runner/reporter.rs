@@ -4,9 +4,7 @@ use std::{env, time};
 
 use anyhow::{anyhow, bail};
 use log::debug;
-use nu_ansi_term::Color::{
-  LightBlue, LightGray, LightGreen, LightYellow, Red, White,
-};
+use nu_ansi_term::Color::{Blue, LightBlue, LightGray, LightGreen, LightYellow, Red, White};
 use nu_ansi_term::{Color, Style};
 use rccell::RcCell;
 
@@ -16,6 +14,7 @@ use crate::{
   CollectorTask,
 };
 
+// TODO: listr
 pub struct KurtexDefaultReporter {
   start_time: time::Instant,
 }
@@ -178,8 +177,10 @@ impl Reporter for KurtexDefaultReporter {
       let task = task.lock().unwrap();
       task.status == CollectorStatus::Fail
     });
+    let has_failed_files =
+      ctx.files.iter().any(|file| file.error.is_some());
 
-    if has_failed {
+    if has_failed | has_failed_files {
       self.paint(
         Red,
         "\n Tests failed. Watching for file changes...".to_string(),
@@ -195,7 +196,7 @@ impl Reporter for KurtexDefaultReporter {
       trigger.strip_prefix(env::current_dir().unwrap()).unwrap();
 
     self.paint(
-      LightGreen,
+      Blue,
       format!("File {} changed, re-running tests...", path.display()),
     );
   }
