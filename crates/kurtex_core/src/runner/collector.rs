@@ -91,6 +91,7 @@ impl FileCollector {
     FileCollector { config, runtime }
   }
 
+  // TODO: refactor (borrow_mut)
   pub async fn run(
     &self,
     opts: FileCollectorOptions,
@@ -177,8 +178,15 @@ impl FileCollector {
     }
     let collector_ctx = RcCell::new(RunnerCollectorContext::default());
 
-    let target_files = if let Some(paths) = opts.existing_paths {
-      paths
+    let target_files = if let Some(changed_files) = opts.existing_paths {
+      let mut runtime = self.runtime.borrow_mut();
+      for path in &changed_files {
+        let _ = runtime
+          .remove_from_module_map(path.display().to_string())
+          .await;
+      }
+
+      changed_files
     } else {
       Self::collect_test_files(&self.config)
     };

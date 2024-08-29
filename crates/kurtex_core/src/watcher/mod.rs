@@ -8,12 +8,14 @@ use deno_core::futures::{SinkExt, StreamExt};
 use deno_core::futures::channel::mpsc;
 use deno_graph::ModuleGraph;
 use notify::{INotifyWatcher, Watcher};
+use rccell::RcCell;
 
-use crate::{AnyResult, EmitRuntimeOptions};
+use crate::AnyResult;
 use crate::reporter::Reporter;
 use crate::runner::collector::{
   RunnerCollectorContext, TestRunnerConfig,
 };
+use crate::runtime::KurtexRuntime;
 use crate::watcher::resolver::WatcherResolver;
 use crate::watcher::watcher::{
   AsyncWatcherDebouncer, DebouncedEventKind, DebounceEventResult,
@@ -24,7 +26,7 @@ pub mod resolver;
 pub mod watcher;
 
 pub type RestartRunnerFn =
-  dyn Fn(Vec<PathBuf>, Rc<TestRunnerConfig>, Rc<EmitRuntimeOptions>);
+  dyn Fn(Vec<PathBuf>, RcCell<KurtexRuntime>, Rc<TestRunnerConfig>);
 
 // TODO: improve watcher options (according to graph),
 // custom folder scope selection
@@ -32,7 +34,7 @@ pub async fn start_watcher(
   trigger: Box<RestartRunnerFn>,
   module_graph: Rc<ModuleGraph>,
   config: Rc<TestRunnerConfig>,
-  emit_opts: Rc<EmitRuntimeOptions>,
+  runtime: RcCell<KurtexRuntime>,
   ctx: &RunnerCollectorContext,
 ) -> AnyResult {
   let path = config.root_dir.as_ref();
@@ -52,7 +54,7 @@ pub async fn start_watcher(
 
             if !changed_files.is_empty() {
               ctx.reporter.watcher_rerun(&changed_files, path);
-              trigger(changed_files, config.clone(), emit_opts.clone())
+              trigger(changed_files, runtime.clone(), config.clone())
             }
           }
         }),

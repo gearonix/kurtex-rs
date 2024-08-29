@@ -86,9 +86,8 @@ impl KurtexRuntime {
   where
     S: AsRef<str>,
   {
-    let file_path = file_path.as_ref();
     let module_specifier =
-      ModuleSpecifier::from_file_path(&file_path).unwrap();
+      ModuleSpecifier::from_file_path(file_path.as_ref()).unwrap();
 
     let module_id = if is_main {
       self.runtime.load_main_es_module(&module_specifier).await?
@@ -104,6 +103,21 @@ impl KurtexRuntime {
 
     self.runtime.mod_evaluate(module_id).await?;
     self.runtime.run_event_loop(Default::default()).await?;
+
+    Ok(module_id)
+  }
+
+  pub async fn remove_from_module_map<S>(
+    &mut self,
+    file_path: S,
+  ) -> AnyResult<ModuleId>
+  where
+    S: AsRef<str>,
+  {
+    let module_specifier =
+      ModuleSpecifier::from_file_path(file_path.as_ref()).unwrap();
+    let module_id =
+      self.runtime.remove_side_es_module(&module_specifier).await?;
 
     Ok(module_id)
   }
