@@ -29,8 +29,8 @@ const EXTENSION_IDENTIFIER: &'static str = "KurtexInternals";
 fn main() -> Result<(), anyhow::Error> {
   let target_snapshot_path = get_out_dir().join("KURTEX_SNAPSHOT.bin");
 
-  let kurtex_pkg_dir = get_kurtex_package_dir();
-  let typescript_entry = kurtex_pkg_dir.join("src/deno-bindings.ts");
+  let binding_dir = get_kurtex_binding_dir();
+  let typescript_entry = binding_dir.join("ops/init.ts");
   let esm_entrypoint_path = kurtex_tmp_dir().join("bindgen/kurtex.mjs");
 
   transpile_typescript_file(&typescript_entry, &esm_entrypoint_path);
@@ -80,10 +80,10 @@ pub fn get_out_dir() -> PathBuf {
   env::var_os("OUT_DIR").expect("OUT_DIR variable is not set").into()
 }
 
-pub fn get_kurtex_package_dir() -> PathBuf {
+pub fn get_kurtex_binding_dir() -> PathBuf {
   let workspace_dir: PathBuf =
     env::var("CARGO_WORKSPACE_DIR").unwrap().into();
-  workspace_dir.join("packages/kurtex")
+  workspace_dir.join("crates/kurtex_binding")
 }
 
 pub fn transpile_typescript_file<S, O>(file_path: &S, output_path: &O)

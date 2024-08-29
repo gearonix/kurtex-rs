@@ -1,11 +1,11 @@
 use std::env;
 
-use crate::result::CliResult;
-use anyhow::{Context, Error};
+use anyhow::Context;
 use clap::builder::Command;
 use clap::{Arg, ArgAction};
 use tracing_subscriber::filter::FilterExt;
 
+use crate::result::CliResult;
 use crate::runner::{CliRunner, Runner};
 
 mod logger;

@@ -71,25 +71,3 @@ export type ObjectEntry<T> = {
   [Key in Extract<keyof T, string>]: [Key, Exclude<T[Key], undefined>]
 }[Extract<keyof T, string>]
 
-declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace Deno {
-    interface DenoCore {
-      ops: {
-        op_register_collector_task: RegisterCollectorTask
-        op_register_collector_node: RegisterCollectorNode
-        op_register_lifetime_hook: RegisterLifetimeHook
-      } & Record<string, (...args: any[]) => unknown>
-    }
-
-    export const core: DenoCore
-  }
-
-  const __kurtexInternals: KurtexInternals
-
-  const test: KurtexPublicApi['test']
-  const it: KurtexPublicApi['it']
-  const createNode: KurtexPublicApi['createNode']
-  const suite: KurtexPublicApi['suite']
-  const describe: KurtexPublicApi['describe']
-}

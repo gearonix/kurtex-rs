@@ -190,6 +190,7 @@ impl FileCollector {
     } else {
       Self::collect_test_files(&self.config)
     };
+
     let processed_files = map_pinned_futures!(
       target_files,
       process_test_file(runtime, collector_ctx),
@@ -198,6 +199,7 @@ impl FileCollector {
         collector_ctx = collector_ctx.clone()
       }
     );
+
 
     collector_ctx.borrow_mut().reporter.start();
 
