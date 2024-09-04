@@ -14,7 +14,7 @@ on:
       - '.github/workflows/unit-tests.yml'
       - 'src/**'
       - 'Cargo.*'
-      - 'crates/kurtex_cli/build.rs'
+      - 'kurtex_cli/build.rs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}

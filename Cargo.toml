@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["kurtex_binding", "kurtex_cli"," kurtex_core"]
 
 
 [workspace.package]
@@ -27,9 +27,9 @@ hashbrown = { version = "0.14.5", features = ["rayon"] }
 anyhow = { version = "1.0.86" }
 
 # Local dependencies
-kurtex_core = { path = "crates/kurtex_core" }
-kurtex_cli = { path = "crates/kurtex_cli" }
-kurtex_bindings = { path = "crates/kurtex_binding" }
+kurtex_core = { path = "kurtex_core" }
+kurtex_cli = { path = "kurtex_cli" }
+kurtex_bindings = { path = "kurtex_binding" }
 
 [profile.dev]
 codegen-units = 16

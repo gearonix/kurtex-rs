@@ -9,7 +9,7 @@ use deno_core::anyhow::Context;
 use deno_core::error::AnyError;
 use deno_core::v8::{DataError, HandleScope, Local, Value};
 use deno_core::{v8, CrossIsolateStore, ModuleId, PollEventLoopOptions};
-use deno_graph::{GraphKind, ModuleGraph, WalkOptions};
+use deno_graph::{BuildOptions, GraphKind, ModuleGraph, WalkOptions};
 use hashbrown::HashMap;
 use rccell::RcCell;
 use serde::{Deserialize, Serialize};
@@ -287,7 +287,11 @@ impl KurtexGraph {
     let loader = self.module_loader.graph_loader().borrow();
     let mut graph = ModuleGraph::new(GraphKind::All);
 
-    graph.build(roots.clone(), loader.deref(), Default::default()).await;
+    graph
+      .build(roots.clone(), loader.deref(), BuildOptions::default())
+      .await;
+
+    println!("{:#?}", graph);
 
     graph
       .walk(

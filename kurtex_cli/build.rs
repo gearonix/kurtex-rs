@@ -83,7 +83,7 @@ pub fn get_out_dir() -> PathBuf {
 pub fn get_kurtex_binding_dir() -> PathBuf {
   let workspace_dir: PathBuf =
     env::var("CARGO_WORKSPACE_DIR").unwrap().into();
-  workspace_dir.join("crates/kurtex_binding")
+  workspace_dir.join("kurtex_binding")
 }
 
 pub fn transpile_typescript_file<S, O>(file_path: &S, output_path: &O)

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use deno_ast::{
   EmitOptions, ImportsNotUsedAsValues, MediaType, ParseParams,
   SourceMapOption, TranspileOptions,
@@ -64,7 +64,11 @@ impl deno_core::ModuleLoader for TypescriptModuleLoader {
       module_specifier: &ModuleSpecifier,
       _requested_module_type: RequestedModuleType,
     ) -> Result<ModuleSource, deno_core::error::AnyError> {
-      let module_path = module_specifier.to_file_path().unwrap();
+      println!("module_specifier: {:?}", module_specifier);
+
+      let module_path = module_specifier
+        .to_file_path()
+        .map_err(|_| anyhow!("Only file:// URLs are supported."))?;
       let module_source = module_specifier.to_string();
       let (module_type, should_transpile) =
         get_module_type_from_path(&module_path);
