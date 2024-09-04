@@ -8,7 +8,7 @@ Testing framework, written in Rust
 [vitest.dev](https://vitest.dev) short-written analogue. 
 Written in rust using [swc](https://swc.rs), [rusty-v8](https://github.com/denoland/rusty_v8), [Deno](https://github.com/denoland/deno_core) low-level APIs.
 
-Collects files, runs them, prints output. Supports functionality such as watch mode, resolving dependency tests, logger, snapshot manager, reporter.
+Supports functionality such as watch mode, resolving dependency tests, logger, snapshot manager, reporter.
 
 ## Examples
 
@@ -72,7 +72,7 @@ describe.skip('block should be skipped', () => {
 
 ```
 
-Run
+Create kurtex config file.
 
 ```typescript
 // kurtex.config.ts
@@ -85,6 +85,7 @@ export default defineConfig({
     parallel: true
 })
 ```
+Run in your terminal
 
 ```shell
 ktx --help
