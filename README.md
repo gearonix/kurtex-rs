@@ -2,7 +2,7 @@
 Kurtex
 </h1>
 <p align="center">
-Testing framework, written in rust
+Testing framework, written in Rust
 <p>
 
 [vitest.dev](https://vitest.dev) short-written analogue. 
@@ -10,14 +10,10 @@ Written in rust using [swc](https://swc.rs), [rusty-v8](https://github.com/denol
 
 Collects files, runs them, prints output. Supports functionality such as watch mode, resolving dependency tests, logger, snapshot manager, reporter.
 
-> [!WARNING]
-> Early stage of development
-
 ## Examples
 
 ```typescript
 // tests/basic.test.ts
-
 import { assertEquals } from 'jsr:@std/assert';
 // Alternatively, you can add methods from @kurtex/mod deno package.
 // import { test, describe, beforeAll, afterAll } from '@kurtex/mod'
@@ -99,7 +95,8 @@ ktx
 ## How it works
 
 ![schema](./media/kurtex.png)
-
+> [!WARNING]
+> Early stage of development
 ## Literature
 
 - [Deno overall architecture](https://choubey.gitbook.io/internals-of-deno/architecture/overall-architecture)
