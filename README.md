@@ -98,7 +98,7 @@ ktx
 
 ## How it works
 
-[schema](./media/kurtex.png)
+![schema](./media/kurtex.png)
 
 ## Literature
 
